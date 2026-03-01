@@ -294,6 +294,99 @@
     <h1>Changelog</h1>
     <p class="subtitle">All notable changes to LobsterBoard will be documented here.</p>
 
+    <!-- Version 0.3.1 -->
+    <article class="version">
+      <div class="version-header">
+        <span class="version-number">v0.3.1</span>
+        <span class="version-date">February 28, 2026</span>
+      </div>
+      <div class="version-body">
+        <section class="change-section fixed">
+          <h3>Fixed</h3>
+          <ul>
+            <li><strong>Edit mode header clutter</strong> — page navigation links now hide when entering edit mode to reduce header crowding</li>
+          </ul>
+        </section>
+      </div>
+    </article>
+
+    <!-- Version 0.3.0 -->
+    <article class="version">
+      <div class="version-header">
+        <span class="version-number">v0.3.0</span>
+        <span class="version-date">February 28, 2026</span>
+        <span class="version-tag">Major</span>
+      </div>
+      <div class="version-body">
+        <section class="change-section added">
+          <h3>Added</h3>
+          <ul>
+            <li><strong>Theme switcher</strong> — 5 beautiful themes: Default (dark), Feminine (pastel pink/lavender), Feminine Dark, Terminal (green CRT), Paper (cream/sepia)</li>
+            <li><strong>Phosphor icon system</strong> — themed widgets use Phosphor icons; Default theme keeps emoji</li>
+            <li><strong>Theme selector dropdown</strong> in edit mode header</li>
+            <li>Theme persists to localStorage and dashboard config</li>
+            <li><strong>Themes showcase</strong> on website and README with lightbox gallery</li>
+          </ul>
+        </section>
+      </div>
+    </article>
+
+    <!-- Version 0.2.6 -->
+    <article class="version">
+      <div class="version-header">
+        <span class="version-number">v0.2.6</span>
+        <span class="version-date">February 23, 2026</span>
+      </div>
+      <div class="version-body">
+        <section class="change-section fixed">
+          <h3>Fixed</h3>
+          <ul>
+            <li><strong>Version suffix comparison</strong> — versions like <code>2026.2.22-2</code> (npm post-release patches) now correctly match GitHub tags like <code>v2026.2.22</code>, fixing false "Update available" indicators — thanks @JamesTsetsekas!</li>
+          </ul>
+        </section>
+      </div>
+    </article>
+
+    <!-- Version 0.2.5 -->
+    <article class="version">
+      <div class="version-header">
+        <span class="version-number">v0.2.5</span>
+        <span class="version-date">February 19, 2026</span>
+        <span class="version-tag">Community</span>
+      </div>
+      <div class="version-body">
+        <section class="change-section fixed">
+          <h3>Fixed</h3>
+          <ul>
+            <li><strong>iCal timezone parsing</strong> — calendar events now display at correct times regardless of timezone (TZID parameter support) — thanks @jlgrimes!</li>
+          </ul>
+        </section>
+        <section class="change-section added">
+          <h3>Added</h3>
+          <ul>
+            <li><strong>Clickable URLs in calendar</strong> — Zoom/Teams links in event summaries and locations are now hyperlinks — thanks @jlgrimes!</li>
+          </ul>
+        </section>
+      </div>
+    </article>
+
+    <!-- Version 0.2.4 -->
+    <article class="version">
+      <div class="version-header">
+        <span class="version-number">v0.2.4</span>
+        <span class="version-date">February 17, 2026</span>
+        <span class="version-tag">Security</span>
+      </div>
+      <div class="version-body">
+        <section class="change-section fixed">
+          <h3>Fixed</h3>
+          <ul>
+            <li><strong>SSRF vulnerability</strong> in RSS feed proxy — thanks @jlgrimes for the security report!</li>
+          </ul>
+        </section>
+      </div>
+    </article>
+
     <!-- Version 0.2.3 -->
     <article class="version">
       <div class="version-header">
@@ -489,11 +582,11 @@
     <div class="upcoming">
       <h2>🚀 Upcoming</h2>
       <ul>
-        <li>GitHub Pages deployment</li>
-        <li>Import/export dashboard layouts (JSON)</li>
+        <li>More themes (submit your own!)</li>
         <li>Widget templates and presets</li>
-        <li>More customization options</li>
-        <li>Community widget contributions</li>
+        <li>Dashboard sharing &amp; cloud sync</li>
+        <li>Mobile-responsive layouts</li>
+        <li>Plugin system for custom widgets</li>
       </ul>
     </div>
   </main>
