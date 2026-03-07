@@ -1,6 +1,6 @@
 # 🦞 LobsterBoard
 
-A self-hosted, drag-and-drop dashboard builder with 50 widgets, a template gallery, custom pages, and zero cloud dependencies. One Node.js server, no frameworks, no build step needed.
+A self-hosted, drag-and-drop dashboard builder with 60+ widgets, a template gallery, custom pages, and zero cloud dependencies. One Node.js server, no frameworks, no build step needed.
 
 **Works standalone or with [OpenClaw](https://github.com/openclaw/openclaw).** LobsterBoard is a general-purpose dashboard — use it to monitor your homelab, track stocks, display weather, manage todos, or anything else. OpenClaw users get bonus widgets (auth status, cron jobs, activity logs), but they're completely optional.
 
@@ -32,7 +32,7 @@ Open **http://localhost:8080** → press **Ctrl+E** to enter edit mode → drag 
 ## Features
 
 - **Drag-and-drop editor** — visual layout with 20px snap grid, resize handles, property panel
-- **50 widgets** — system monitoring, weather, calendars, RSS, smart home, finance, AI/LLM tracking, notes, and more
+- **60+ widgets** — system monitoring, weather, calendars, RSS, smart home, finance, AI/LLM tracking, notes, and more
 - **Template Gallery** — export, import, and share dashboard layouts with auto-screenshot previews; import as merge or full replace
 - **Custom pages** — extend your dashboard with full custom pages (notes, kanban boards, anything)
 - **Canvas sizes** — preset resolutions (1920×1080, 2560×1440, etc.) or custom sizes
@@ -121,13 +121,28 @@ LobsterBoard includes a built-in template system for sharing and reusing dashboa
 | Quick Links | Bookmark grid |
 
 ### 🤖 AI / LLM Monitoring
-| Widget | Description |
-|--------|-------------|
-| Claude Usage | Anthropic API spend tracking |
-| AI Cost Tracker | Monthly cost breakdown |
-| API Status | Provider availability |
-| Active Sessions | OpenClaw session monitor |
-| Token Gauge | Context window usage |
+
+Track your AI coding subscriptions in real-time. Inspired by [OpenUsage](https://github.com/robinebers/openusage) by Robin Ebers.
+
+| Widget | Description | Setup |
+|--------|-------------|-------|
+| AI Usage | Combined view of all providers | — |
+| Claude Code | Session, weekly, Opus limits | Run `claude` once |
+| Codex CLI | Session, weekly, code reviews | Run `codex` once |
+| GitHub Copilot | Premium, chat, completions | Run `gh auth login` |
+| Cursor | Credits, usage breakdown | Just use Cursor IDE |
+| Gemini CLI | Pro, flash models | Run `gemini` once |
+| Amp | Free tier, credits | Run `amp` once |
+| Factory / Droid | Standard, premium tokens | Run `factory` once |
+| Kimi Code | Session, weekly | Run `kimi` once |
+| JetBrains AI | Quota tracking | Sign in via IDE |
+| Antigravity | Gemini 3, Claude via Google | Run `antigravity-usage login` |
+| MiniMax | Coding plan session | Set `MINIMAX_API_KEY` |
+| Z.ai | Session, weekly | Set `ZAI_API_KEY` |
+| AI Cost Tracker | Monthly cost breakdown | — |
+| API Status | Provider availability | — |
+| Active Sessions | OpenClaw session monitor | — |
+| Token Gauge | Context window usage | — |
 
 ### 💰 Finance
 | Widget | Description |
