@@ -614,11 +614,17 @@ function readCredentials(provider) {
 
 // Fetch Claude usage
 async function fetchClaudeUsage() {
+  const baseInfo = {
+    provider: 'claude',
+    name: AI_PROVIDERS.claude.name,
+    icon: AI_PROVIDERS.claude.icon,
+  };
+  
   const creds = readCredentials('claude');
-  if (!creds) return { error: 'Not logged in. Run `claude` to authenticate.' };
+  if (!creds) return { ...baseInfo, error: 'Not logged in. Run `claude` to authenticate.' };
   
   const oauthData = creds.data.claudeAiOauth;
-  if (!oauthData?.accessToken) return { error: 'No access token found.' };
+  if (!oauthData?.accessToken) return { ...baseInfo, error: 'No access token found.' };
   
   let accessToken = oauthData.accessToken;
   
@@ -641,23 +647,23 @@ async function fetchClaudeUsage() {
   // If unauthorized, try to refresh
   if (resp.status === 401 || resp.status === 403) {
     if (!oauthData.refreshToken) {
-      return { error: 'Session expired. Run `claude` to re-authenticate.' };
+      return { ...baseInfo, error: 'Session expired. Run `claude` to re-authenticate.' };
     }
     try {
       const refreshed = await refreshClaudeToken(oauthData.refreshToken, creds.source === 'file' ? creds.path : null);
       if (refreshed.error) {
-        return { error: 'Session expired. Run `claude` to re-authenticate.' };
+        return { ...baseInfo, error: 'Session expired. Run `claude` to re-authenticate.' };
       }
       accessToken = refreshed.accessToken;
       resp = await makeRequest(accessToken);
     } catch (e) {
-      return { error: 'Session expired. Run `claude` to re-authenticate.' };
+      return { ...baseInfo, error: 'Session expired. Run `claude` to re-authenticate.' };
     }
   }
   
   try {
     if (!resp.ok) {
-      return { error: `API error (HTTP ${resp.status})` };
+      return { ...baseInfo, error: `API error (HTTP ${resp.status})` };
     }
     
     const data = await resp.json();
@@ -712,7 +718,7 @@ async function fetchClaudeUsage() {
       metrics,
     };
   } catch (e) {
-    return { error: 'Network error: ' + e.message };
+    return { ...baseInfo, error: 'Network error: ' + e.message };
   }
 }
 
@@ -755,11 +761,17 @@ async function refreshClaudeToken(refreshToken, credPath) {
 
 // Fetch Codex usage
 async function fetchCodexUsage() {
+  const baseInfo = {
+    provider: 'codex',
+    name: AI_PROVIDERS.codex.name,
+    icon: AI_PROVIDERS.codex.icon,
+  };
+  
   const creds = readCredentials('codex');
-  if (!creds) return { error: 'Not logged in. Run `codex auth` to authenticate.' };
+  if (!creds) return { ...baseInfo, error: 'Not logged in. Run `codex auth` to authenticate.' };
   
   const tokens = creds.data.tokens;
-  if (!tokens?.access_token) return { error: 'No access token found.' };
+  if (!tokens?.access_token) return { ...baseInfo, error: 'No access token found.' };
   
   try {
     const headers = {
@@ -774,9 +786,9 @@ async function fetchCodexUsage() {
     
     if (!resp.ok) {
       if (resp.status === 401 || resp.status === 403) {
-        return { error: 'Session expired. Run `codex auth` to re-authenticate.' };
+        return { ...baseInfo, error: 'Session expired. Run `codex auth` to re-authenticate.' };
       }
-      return { error: `API error (HTTP ${resp.status})` };
+      return { ...baseInfo, error: `API error (HTTP ${resp.status})` };
     }
     
     const data = await resp.json();
@@ -835,7 +847,7 @@ async function fetchCodexUsage() {
       metrics,
     };
   } catch (e) {
-    return { error: 'Network error: ' + e.message };
+    return { ...baseInfo, error: 'Network error: ' + e.message };
   }
 }
 
