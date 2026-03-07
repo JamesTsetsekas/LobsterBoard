@@ -71,8 +71,8 @@ const WIDGET_ICONS = {
   
   // AI / Monitoring
   'ai-usage': { emoji: '🤖', phosphor: 'robot' },
-  'ai-usage-claude': { emoji: '🟣', phosphor: 'circle' },
-  'ai-usage-codex': { emoji: '🟢', phosphor: 'circle' },
+  'claude-local': { emoji: '🟣', phosphor: 'circle' },
+  'codex-local': { emoji: '🟢', phosphor: 'circle' },
   'ai-claude': { emoji: '🟣', phosphor: 'circle' },
   'ai-cost': { emoji: '💰', phosphor: 'currency-dollar' },
   'api-status': { emoji: '🔄', phosphor: 'arrows-clockwise' },
@@ -801,7 +801,7 @@ const WIDGETS = {
       hideUnauthenticated: true,
       showPlan: true,
       compactMode: false,
-      refreshInterval: 120
+      refreshInterval: 300
     },
     preview: `<div style="padding:4px;font-size:11px;color:#8b949e;">
       <div>🟣 Claude — 25% session</div>
@@ -922,23 +922,23 @@ const WIDGETS = {
         }
       }
       update_${props.id.replace(/-/g, '_')}();
-      setInterval(update_${props.id.replace(/-/g, '_')}, ${(props.refreshInterval || 120) * 1000});
+      setInterval(update_${props.id.replace(/-/g, '_')}, ${(props.refreshInterval || 300) * 1000});
     `
   },
 
-  'ai-usage-claude': {
+  'claude-local': {
     privacyWarning: true,
-    name: 'Claude Usage',
+    name: 'Claude (Local)',
     icon: '🟣',
     category: 'small',
-    description: 'Track Claude Code usage (session, weekly, Opus limits). Reads from local credentials.',
+    description: 'Track Claude Code usage (session, weekly, Opus limits). Reads from local CLI credentials.',
     defaultWidth: 280,
     defaultHeight: 180,
     hasApiKey: false,
     properties: {
       title: 'Claude',
       showPlan: true,
-      refreshInterval: 120
+      refreshInterval: 300
     },
     preview: `<div style="padding:4px;font-size:11px;color:#8b949e;">
       <div>Session: 25%</div>
@@ -993,23 +993,23 @@ const WIDGETS = {
         }
       }
       update_${props.id.replace(/-/g, '_')}();
-      setInterval(update_${props.id.replace(/-/g, '_')}, ${(props.refreshInterval || 120) * 1000});
+      setInterval(update_${props.id.replace(/-/g, '_')}, ${(props.refreshInterval || 300) * 1000});
     `
   },
 
-  'ai-usage-codex': {
+  'codex-local': {
     privacyWarning: true,
-    name: 'Codex Usage',
+    name: 'Codex (Local)',
     icon: '🟢',
     category: 'small',
-    description: 'Track Codex CLI usage (session, weekly, code reviews). Reads from local credentials.',
+    description: 'Track Codex CLI usage (session, weekly, code reviews). Reads from local CLI credentials.',
     defaultWidth: 280,
     defaultHeight: 180,
     hasApiKey: false,
     properties: {
       title: 'Codex',
       showPlan: true,
-      refreshInterval: 120
+      refreshInterval: 300
     },
     preview: `<div style="padding:4px;font-size:11px;color:#8b949e;">
       <div>Session: 5%</div>
@@ -1064,7 +1064,7 @@ const WIDGETS = {
         }
       }
       update_${props.id.replace(/-/g, '_')}();
-      setInterval(update_${props.id.replace(/-/g, '_')}, ${(props.refreshInterval || 120) * 1000});
+      setInterval(update_${props.id.replace(/-/g, '_')}, ${(props.refreshInterval || 300) * 1000});
     `
   },
 
@@ -2242,7 +2242,7 @@ const WIDGETS = {
         }
       }
       update_${props.id.replace(/-/g, '_')}();
-      setInterval(update_${props.id.replace(/-/g, '_')}, ${(props.refreshInterval || 120) * 1000});
+      setInterval(update_${props.id.replace(/-/g, '_')}, ${(props.refreshInterval || 300) * 1000});
     `
   },
 

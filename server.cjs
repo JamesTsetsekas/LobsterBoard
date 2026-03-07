@@ -876,7 +876,7 @@ const aiUsageCache = {
   claude: { data: null, timestamp: 0 },
   codex: { data: null, timestamp: 0 },
 };
-const AI_CACHE_TTL_MS = 120000; // 2 minutes cache
+const AI_CACHE_TTL_MS = 300000; // 5 minutes cache
 
 // Cached fetch wrapper
 async function fetchWithCache(provider, fetchFn) {
