@@ -630,6 +630,15 @@ const AI_PROVIDERS = {
     icon: '🇿',
     envKeys: ['ZAI_API_KEY', 'GLM_API_KEY'],
   },
+  antigravity: {
+    name: 'Antigravity',
+    icon: '🪐',
+    configPath: path.join(os.homedir(), 'Library', 'Application Support', 'antigravity-usage', 'config.json'),
+    accountsDir: path.join(os.homedir(), 'Library', 'Application Support', 'antigravity-usage', 'accounts'),
+    // OAuth credentials from env vars (get from antigravity-usage or Google Cloud Console)
+    tokenUrl: 'https://oauth2.googleapis.com/token',
+    apiUrl: 'https://cloudcode-pa.googleapis.com/v1internal:fetchAvailableModels',
+  },
 };
 
 // Try to read credentials from file paths, then keychain (macOS)
@@ -712,6 +721,8 @@ async function fetchClaudeUsage() {
         'Accept': 'application/json',
         'Content-Type': 'application/json',
         'anthropic-beta': 'oauth-2025-04-20',
+        'User-Agent': 'claude-code/1.0.0',
+        'X-Client-Name': 'claude-code',
       },
     });
     return resp;
@@ -739,6 +750,9 @@ async function fetchClaudeUsage() {
   
   try {
     if (!resp.ok) {
+      if (resp.status === 429) {
+        return { ...baseInfo, error: '429 rate limited - using cache' };
+      }
       return { ...baseInfo, error: `API error (HTTP ${resp.status})` };
     }
     
@@ -1157,24 +1171,36 @@ async function fetchGeminiUsage() {
     const data = await resp.json();
     const metrics = [];
     
-    // Parse quota buckets
-    if (data.quotaBuckets) {
-      for (const bucket of data.quotaBuckets) {
-        if (bucket.remaining !== undefined && bucket.limit !== undefined) {
-          const used = bucket.limit - bucket.remaining;
-          metrics.push({
-            label: bucket.model || bucket.name || 'Quota',
-            used: (used / bucket.limit) * 100,
-            limit: 100,
-            format: 'percent',
-          });
-        }
-      }
+    // Parse quota buckets (API returns 'buckets' with 'remainingFraction')
+    const buckets = data.buckets || data.quotaBuckets || [];
+    
+    // Filter for interesting models and REQUESTS type
+    const interestingModels = ['gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-2.0-flash'];
+    const seen = new Set();
+    
+    for (const bucket of buckets) {
+      if (bucket.tokenType !== 'REQUESTS') continue;
+      // Skip vertex variants
+      if (bucket.modelId?.includes('_vertex')) continue;
+      // Only show interesting models
+      if (!interestingModels.some(m => bucket.modelId?.startsWith(m))) continue;
+      // Dedupe
+      if (seen.has(bucket.modelId)) continue;
+      seen.add(bucket.modelId);
+      
+      const remaining = bucket.remainingFraction ?? 1;
+      metrics.push({
+        label: bucket.modelId || 'Quota',
+        used: Math.round((1 - remaining) * 100),
+        limit: 100,
+        format: 'percent',
+        resetTime: bucket.resetTime,
+      });
     }
     
     return {
       ...baseInfo,
-      plan: data.tier || 'unknown',
+      plan: 'Gemini CLI',
       metrics,
     };
   } catch (e) {
@@ -1460,7 +1486,130 @@ async function fetchZaiUsage() {
   } catch (e) { return { ...baseInfo, error: 'Network error: ' + e.message }; }
 }
 
+async function fetchAntigravityUsage() {
+  const baseInfo = { provider: 'antigravity', name: AI_PROVIDERS.antigravity.name, icon: AI_PROVIDERS.antigravity.icon };
+  const config = AI_PROVIDERS.antigravity;
+  
+  // Read config to get active account
+  let activeAccount;
+  try {
+    const configData = JSON.parse(fs.readFileSync(config.configPath, 'utf8'));
+    activeAccount = configData.activeAccount;
+  } catch (_) {
+    return { ...baseInfo, error: 'Run: antigravity-usage login' };
+  }
+  
+  if (!activeAccount) {
+    return { ...baseInfo, error: 'No active account configured.' };
+  }
+  
+  // Read tokens for active account
+  const tokensPath = path.join(config.accountsDir, activeAccount, 'tokens.json');
+  let tokens;
+  try {
+    tokens = JSON.parse(fs.readFileSync(tokensPath, 'utf8'));
+  } catch (_) {
+    return { ...baseInfo, error: 'Token file not found for ' + activeAccount };
+  }
+  
+  // Refresh token if expired
+  let accessToken = tokens.accessToken;
+  if (tokens.expiresAt && Date.now() > tokens.expiresAt - 60000) {
+    // Need OAuth credentials from env vars for token refresh
+    const clientId = process.env.ANTIGRAVITY_CLIENT_ID;
+    const clientSecret = process.env.ANTIGRAVITY_CLIENT_SECRET;
+    
+    if (!clientId || !clientSecret) {
+      return { ...baseInfo, error: 'Token expired. Run `antigravity-usage` to refresh, or set ANTIGRAVITY_CLIENT_ID/SECRET env vars.' };
+    }
+    
+    try {
+      const refreshResp = await fetch(config.tokenUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          client_id: clientId,
+          client_secret: clientSecret,
+          refresh_token: tokens.refreshToken,
+          grant_type: 'refresh_token',
+        }),
+      });
+      if (!refreshResp.ok) {
+        return { ...baseInfo, error: 'Token refresh failed (HTTP ' + refreshResp.status + ')' };
+      }
+      const refreshData = await refreshResp.json();
+      accessToken = refreshData.access_token;
+      // Update stored tokens
+      tokens.accessToken = accessToken;
+      tokens.expiresAt = Date.now() + (refreshData.expires_in * 1000);
+      try { fs.writeFileSync(tokensPath, JSON.stringify(tokens, null, 2)); } catch (_) {}
+    } catch (e) {
+      return { ...baseInfo, error: 'Token refresh error: ' + e.message };
+    }
+  }
+  
+  // Fetch available models with quota info
+  try {
+    const resp = await fetch(config.apiUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer ' + accessToken,
+        'Content-Type': 'application/json',
+        'User-Agent': 'antigravity',
+      },
+      body: JSON.stringify({ project: tokens.projectId }),
+    });
+    
+    if (!resp.ok) {
+      if (resp.status === 401 || resp.status === 403) return { ...baseInfo, error: 'Auth failed. Re-run: antigravity-usage login' };
+      if (resp.status === 429) return { ...baseInfo, error: 'Rate limited. Try again later.' };
+      return { ...baseInfo, error: 'API error (HTTP ' + resp.status + ')' };
+    }
+    
+    const data = await resp.json();
+    const models = data.models || {};
+    
+    // Build metrics from model quotas
+    const metrics = [];
+    const interestingModels = ['gemini-3-pro-high', 'gemini-3-pro-low', 'claude-sonnet-4-6', 'claude-opus-4-6-thinking'];
+    
+    for (const modelId of interestingModels) {
+      const model = models[modelId];
+      if (model && model.quotaInfo) {
+        const remaining = model.quotaInfo.remainingFraction ?? 1;
+        metrics.push({
+          label: model.displayName || modelId,
+          used: Math.round((1 - remaining) * 100),
+          limit: 100,
+          format: 'percent',
+          resetTime: model.quotaInfo.resetTime,
+        });
+      }
+    }
+    
+    // If no interesting models found, show first few available
+    if (metrics.length === 0) {
+      for (const [modelId, model] of Object.entries(models).slice(0, 4)) {
+        if (model.quotaInfo) {
+          const remaining = model.quotaInfo.remainingFraction ?? 1;
+          metrics.push({
+            label: model.displayName || modelId,
+            used: Math.round((1 - remaining) * 100),
+            limit: 100,
+            format: 'percent',
+          });
+        }
+      }
+    }
+    
+    return { ...baseInfo, plan: activeAccount, metrics };
+  } catch (e) {
+    return { ...baseInfo, error: 'Network error: ' + e.message };
+  }
+}
+
 // Cache for AI usage data (avoid 429 rate limits)
+// In-memory cache
 const aiUsageCache = {
   claude: { data: null, timestamp: 0 },
   codex: { data: null, timestamp: 0 },
@@ -1473,8 +1622,36 @@ const aiUsageCache = {
   minimax: { data: null, timestamp: 0 },
   zai: { data: null, timestamp: 0 },
   amp: { data: null, timestamp: 0 },
+  antigravity: { data: null, timestamp: 0 },
 };
 const AI_CACHE_TTL_MS = 300000; // 5 minutes cache
+
+// Persistent file cache (survives restarts)
+const AI_CACHE_FILE = path.join(__dirname, 'data', 'ai-usage-cache.json');
+
+function loadPersistentCache() {
+  try {
+    if (fs.existsSync(AI_CACHE_FILE)) {
+      const data = JSON.parse(fs.readFileSync(AI_CACHE_FILE, 'utf8'));
+      for (const [provider, entry] of Object.entries(data)) {
+        if (aiUsageCache[provider] && entry.data) {
+          aiUsageCache[provider] = entry;
+        }
+      }
+      console.log('[AI Cache] Loaded persistent cache');
+    }
+  } catch (e) { /* ignore */ }
+}
+
+function savePersistentCache() {
+  try {
+    fs.mkdirSync(path.dirname(AI_CACHE_FILE), { recursive: true });
+    fs.writeFileSync(AI_CACHE_FILE, JSON.stringify(aiUsageCache, null, 2));
+  } catch (e) { /* ignore */ }
+}
+
+// Load cache on startup
+loadPersistentCache();
 
 // Cached fetch wrapper
 async function fetchWithCache(provider, fetchFn) {
@@ -1493,10 +1670,11 @@ async function fetchWithCache(provider, fetchFn) {
   if (!result.error) {
     cache.data = result;
     cache.timestamp = now;
-  } else if (result.error.includes('429')) {
+    savePersistentCache(); // Persist to disk
+  } else if (result.error.includes('429') || result.error.includes('rate')) {
     // On rate limit, return stale cache if available
     if (cache.data) {
-      return { ...cache.data, cached: true, stale: true };
+      return { ...cache.data, cached: true, stale: true, rateLimited: true };
     }
   }
   
@@ -1517,12 +1695,40 @@ async function getAllAiUsage(options = {}) {
     fetchWithCache('jetbrains', fetchJetbrainsUsage),
     fetchWithCache('minimax', fetchMinimaxUsage),
     fetchWithCache('zai', fetchZaiUsage),
+    fetchWithCache('antigravity', fetchAntigravityUsage),
   ]);
   
   return {
     providers: results,
     timestamp: new Date().toISOString(),
   };
+}
+
+// GET /api/latest-image?dir=<path> - newest image from a directory
+function latestImageHandler(parsedUrl, res) {
+  const dir = parsedUrl.searchParams.get('dir');
+  if (!dir) return sendResponse(res, 200, 'application/json', JSON.stringify({ status: 'error', message: 'Missing dir parameter' }));
+  const resolved = path.resolve(dir.replace(/^~/, os.homedir()));
+  const home = os.homedir();
+  if (!resolved.startsWith(home + path.sep) && resolved !== home) {
+    return sendResponse(res, 200, 'application/json', JSON.stringify({ status: 'error', message: 'Directory must be under home' }));
+  }
+  try {
+    const imageExts = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.svg'];
+    const files = fs.readdirSync(resolved)
+      .filter(f => imageExts.includes(path.extname(f).toLowerCase()))
+      .map(f => ({ name: f, mtime: fs.statSync(path.join(resolved, f)).mtimeMs }))
+      .sort((a, b) => b.mtime - a.mtime);
+    if (files.length === 0) return sendResponse(res, 200, 'application/json', JSON.stringify({ status: 'ok', image: null, message: 'No images found' }));
+    const latest = files[0];
+    const ext = path.extname(latest.name).toLowerCase().replace('.', '');
+    const mime = ext === 'svg' ? 'image/svg+xml' : ext === 'jpg' ? 'image/jpeg' : `image/${ext}`;
+    const data = fs.readFileSync(path.join(resolved, latest.name));
+    const b64 = data.toString('base64');
+    return sendResponse(res, 200, 'application/json', JSON.stringify({ status: 'ok', image: { name: latest.name, mtime: latest.mtime, dataUrl: `data:${mime};base64,${b64}` }, total: files.length }));
+  } catch (error) { 
+    return sendResponse(res, 200, 'application/json', JSON.stringify({ status: 'error', message: error.message })); 
+  }
 }
 
 const server = http.createServer(async (req, res) => {
@@ -1976,6 +2182,9 @@ const server = http.createServer(async (req, res) => {
           break;
         case 'zai':
           data = await fetchWithCache('zai', fetchZaiUsage);
+          break;
+        case 'antigravity':
+          data = await fetchWithCache('antigravity', fetchAntigravityUsage);
           break;
         default:
           return sendJson(res, 404, { status: 'error', message: `Unknown provider: ${provider}` });
@@ -2718,8 +2927,10 @@ const server = http.createServer(async (req, res) => {
         .sort((a, b) => a.localeCompare(b));
       const imageExts = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.svg'];
       const imageCount = fs.readdirSync(resolved).filter(f => imageExts.includes(path.extname(f).toLowerCase())).length;
-      sendResponse(res, 200, 'application/json', JSON.stringify({ status: 'ok', path: resolved, dirs: entries, imageCount }));
-    } catch (error) { sendResponse(res, 200, 'application/json', JSON.stringify({ status: 'error', message: error.message })); }
+      return sendResponse(res, 200, 'application/json', JSON.stringify({ status: 'ok', path: resolved, dirs: entries, imageCount }));
+    } catch (error) { 
+      return sendResponse(res, 200, 'application/json', JSON.stringify({ status: 'error', message: error.message })); 
+    }
   }
 
   if (req.method === 'POST' && pathname === '/api/templates/export') {
@@ -2870,32 +3081,6 @@ const server = http.createServer(async (req, res) => {
     sendResponse(res, 200, contentType, data);
   });
 });
-
-// GET /api/latest-image?dir=<path> - newest image from a directory
-// (inserted before graceful shutdown)
-const latestImageHandler = (parsedUrl, res) => {
-  const dir = parsedUrl.searchParams.get('dir');
-  if (!dir) return sendResponse(res, 200, 'application/json', JSON.stringify({ status: 'error', message: 'Missing dir parameter' }));
-  const resolved = path.resolve(dir.replace(/^~/, os.homedir()));
-  const home = os.homedir();
-  if (!resolved.startsWith(home + path.sep) && resolved !== home) {
-    return sendResponse(res, 200, 'application/json', JSON.stringify({ status: 'error', message: 'Directory must be under home' }));
-  }
-  try {
-    const imageExts = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.svg'];
-    const files = fs.readdirSync(resolved)
-      .filter(f => imageExts.includes(path.extname(f).toLowerCase()))
-      .map(f => ({ name: f, mtime: fs.statSync(path.join(resolved, f)).mtimeMs }))
-      .sort((a, b) => b.mtime - a.mtime);
-    if (files.length === 0) return sendResponse(res, 200, 'application/json', JSON.stringify({ status: 'ok', image: null, message: 'No images found' }));
-    const latest = files[0];
-    const ext = path.extname(latest.name).toLowerCase().replace('.', '');
-    const mime = ext === 'svg' ? 'image/svg+xml' : ext === 'jpg' ? 'image/jpeg' : `image/${ext}`;
-    const data = fs.readFileSync(path.join(resolved, latest.name));
-    const b64 = data.toString('base64');
-    sendResponse(res, 200, 'application/json', JSON.stringify({ status: 'ok', image: { name: latest.name, mtime: latest.mtime, dataUrl: `data:${mime};base64,${b64}` }, total: files.length }));
-  } catch (error) { sendResponse(res, 200, 'application/json', JSON.stringify({ status: 'error', message: error.message })); }
-};
 
 // Graceful shutdown
 process.on('SIGTERM', () => server.close(() => process.exit(0)));
