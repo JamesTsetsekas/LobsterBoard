@@ -2209,13 +2209,13 @@ const WIDGETS = {
     name: 'CPU / Memory',
     icon: '💻',
     category: 'small',
-    description: 'Shows CPU and memory usage. Requires system stats API.',
+    description: 'Shows CPU and memory usage. Supports remote servers via lobsterboard-agent.',
     defaultWidth: 200,
     defaultHeight: 120,
     hasApiKey: false,
     properties: {
       title: 'System',
-      endpoint: '/api/system',
+      server: 'local',
       refreshInterval: 5
     },
     preview: `<div style="padding:8px;font-size:11px;">
@@ -2233,8 +2233,14 @@ const WIDGETS = {
         </div>
       </div>`,
     generateJs: (props) => `
-      // CPU/Memory Widget: ${props.id} — live via SSE
-      onSystemStats(function(data) {
+      // CPU/Memory Widget: ${props.id} — ${props.server === 'local' ? 'local SSE' : 'remote: ' + props.server}
+      onStats('${props.server || 'local'}', function(data) {
+        // Handle offline state
+        if (data._offline) {
+          document.getElementById('${props.id}-cpu').textContent = '⚠️';
+          document.getElementById('${props.id}-mem').textContent = 'offline';
+          return;
+        }
         if (data.cpu) {
           document.getElementById('${props.id}-cpu').textContent = data.cpu.currentLoad.toFixed(0) + '%';
         }
@@ -2243,7 +2249,7 @@ const WIDGETS = {
           const total = (data.memory.total / (1024*1024*1024)).toFixed(1);
           document.getElementById('${props.id}-mem').textContent = used + ' / ' + total + ' GB';
         }
-      });
+      }, ${(props.refreshInterval || 5) * 1000});
     `
   },
 

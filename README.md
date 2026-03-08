@@ -58,6 +58,44 @@ LobsterBoard ships with 5 built-in themes. Switch themes from the dropdown in ed
 - **Feminine** — soft pink and lavender pastels with subtle glows
 - **Feminine Dark** — pink/purple accents on a dark background
 
+## Remote Server Monitoring
+
+Monitor multiple servers from a single dashboard using [lobsterboard-agent](https://www.npmjs.com/package/lobsterboard-agent).
+
+### Setup Remote Server
+
+On your VPS/remote server:
+
+```bash
+npm install -g lobsterboard-agent
+lobsterboard-agent init     # Generates API key - save it!
+lobsterboard-agent serve    # Starts on port 9090
+```
+
+### Add to LobsterBoard
+
+1. Click **🖥️ Servers** in the header
+2. Enter server name, URL (`http://your-server-ip:9090`), and API key
+3. Click **Test Connection** to verify
+4. Add widgets (Uptime Monitor, Docker, CPU/Memory, etc.)
+5. Select your remote server from the **Server** dropdown in widget properties
+
+### Supported Widgets
+
+These widgets support remote server data:
+
+| Widget | What It Shows |
+|--------|---------------|
+| **Uptime Monitor** | System uptime, CPU, memory |
+| **CPU / Memory** | CPU usage + RAM usage |
+| **Disk Usage** | Disk space with ring chart |
+| **Network Speed** | Upload/download throughput |
+| **Docker Containers** | Container list and status |
+
+### Multi-Server Dashboard
+
+Add multiple widgets and select different servers for each — monitor your entire infrastructure from one dashboard.
+
 ## Configuration
 
 ```bash

@@ -1547,7 +1547,7 @@ function showProperties(widget) {
   }
 
   // Show server dropdown for system widgets
-  const systemWidgets = ['uptime-monitor', 'docker-containers', 'system-stats', 'disk-usage', 'network-speed'];
+  const systemWidgets = ['uptime-monitor', 'docker-containers', 'disk-usage', 'network-speed', 'cpu-memory'];
   const serverGroup = document.getElementById('prop-server-group');
   if (serverGroup && systemWidgets.includes(widget.type)) {
     serverGroup.style.display = 'block';
