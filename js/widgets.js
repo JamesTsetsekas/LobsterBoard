@@ -347,7 +347,7 @@ const WIDGETS = {
         const labelEl = document.getElementById('${props.id}-label');
         const iconEl = document.getElementById('${props.id}-icon');
         try {
-          const loc = '${props.location || 'Graz'}';
+          const loc = '${props.location || 'Atlanta'}';
           const geoRes = await fetch('https://geocoding-api.open-meteo.com/v1/search?name=' + encodeURIComponent(loc) + '&count=1');
           const geoData = await geoRes.json();
           if (!geoData.results || !geoData.results.length) throw new Error('City not found');
