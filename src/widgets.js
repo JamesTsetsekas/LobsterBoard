@@ -471,6 +471,26 @@ export const WIDGETS = {
       document.getElementById('${props.id}-refresh').textContent = 
         new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
     `
+  },
+
+  'claude-usage': {
+    name: 'Claude Usage',
+    icon: '🤖',
+    category: 'large',
+    description: 'Real-time Claude Code subscription usage (5h session, 7d weekly, Opus, Sonnet limits). Reads credentials from ~/.claude.',
+    defaultWidth: 380,
+    defaultHeight: 260,
+    hasApiKey: false,
+    properties: { title: 'Claude Usage', refreshInterval: 120 },
+    preview: `<div style="padding:8px;font-size:11px;"><div><b>5h Session</b> 28%</div><div><b>7d Weekly</b> 31%</div></div>`,
+    generateHtml: (props) => `<div class="dash-card" id="widget-${props.id}" style="height:100%;"><div class="dash-card-head"><span class="dash-card-title">🤖 ${props.title || 'Claude Usage'}</span><span id="${props.id}-sub" style="font-size:10px;color:#8b949e;margin-left:auto;"></span></div><div class="dash-card-body" id="${props.id}-body" style="padding:8px 12px;overflow-y:auto;"><div style="color:#8b949e;text-align:center;">Loading...</div></div></div>`,
+    generateJs: (props) => `
+      function barColor(pct) { return pct >= 80 ? '#f85149' : pct >= 50 ? '#d29922' : '#3fb950'; }
+      function timeLeft(iso) { if (!iso) return ''; const ms = new Date(iso) - Date.now(); if (ms <= 0) return 'now'; const h = Math.floor(ms/3600000), m = Math.floor((ms%3600000)/60000); return h > 0 ? h+'h '+m+'m' : m+'m'; }
+      function usageBar(label, pct, resetIso) { const p = Math.min(100,Math.max(0,pct||0)), c = barColor(p), reset = resetIso ? '<span style="color:#8b949e;font-size:10px;">resets '+timeLeft(resetIso)+'</span>' : ''; return '<div style="margin-bottom:10px;"><div style="display:flex;justify-content:space-between;margin-bottom:3px;"><span style="font-weight:600;font-size:12px;">'+label+'</span><span style="font-size:13px;font-weight:700;color:'+c+';">'+p.toFixed(0)+'%</span></div><div style="background:#21262d;border-radius:4px;height:8px;overflow:hidden;"><div style="width:'+p+'%;height:100%;background:'+c+';border-radius:4px;transition:width .5s;"></div></div>'+(reset?'<div style="text-align:right;margin-top:2px;">'+reset+'</div>':'')+'</div>'; }
+      async function update_${props.id.replace(/-/g,'_')}() { const body = document.getElementById('${props.id}-body'); const subEl = document.getElementById('${props.id}-sub'); try { const res = await fetch('/api/pages/claude-usage/usage'); const d = await res.json(); if (d.error) { body.innerHTML='<div style="color:#f85149;">'+d.error+'</div>'; return; } if (subEl) { subEl.textContent = {max:'Max (5×)',pro:'Pro',free:'Free'}[d.subscription]||d.subscription||''; } let html=''; if(d.five_hour) html+=usageBar('5h Session',d.five_hour.utilization,d.five_hour.resets_at); if(d.seven_day) html+=usageBar('7d Weekly',d.seven_day.utilization,d.seven_day.resets_at); if(d.seven_day_opus) html+=usageBar('Opus (7d)',d.seven_day_opus.utilization,d.seven_day_opus.resets_at); if(d.seven_day_sonnet&&d.seven_day_sonnet.utilization>0) html+=usageBar('Sonnet (7d)',d.seven_day_sonnet.utilization,d.seven_day_sonnet.resets_at); if(d.extra_usage&&d.extra_usage.is_enabled){const used=(d.extra_usage.used_credits/100).toFixed(2),limit=d.extra_usage.monthly_limit>0?(d.extra_usage.monthly_limit/100).toFixed(2):'∞';html+='<div style="margin-top:4px;padding-top:6px;border-top:1px solid #30363d;"><div style="display:flex;justify-content:space-between;font-size:11px;"><span style="color:#8b949e;">Extra Usage</span><span style="font-weight:600;">$'+used+' / $'+limit+'</span></div></div>';} if(!html) html='<div style="color:#8b949e;">No usage data</div>'; body.innerHTML=html; } catch(e) { console.error('Claude usage error:',e); body.innerHTML='<div style="color:#f85149;">Failed to load</div>'; } }
+      update_${props.id.replace(/-/g,'_')}(); setInterval(update_${props.id.replace(/-/g,'_')}, ${(props.refreshInterval||120)*1000});
+    `
   }
 };
 
