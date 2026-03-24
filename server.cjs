@@ -2755,7 +2755,10 @@ const server = http.createServer(async (req, res) => {
         try {
           // Run openclaw --version to get the actual running version
           const { execSync } = require('child_process');
-          currentVersion = execSync('openclaw --version 2>/dev/null', { encoding: 'utf8', timeout: 5000 }).trim();
+          const cliOutput = execSync('openclaw --version 2>/dev/null', { encoding: 'utf8', timeout: 5000 }).trim();
+          // Output format: "OpenClaw 2026.3.23-2 (hash)" — extract just the version
+          const vMatch = cliOutput.match(/(\d{4}\.\d+\.\d+(?:-\d+)?)/);
+          currentVersion = vMatch ? vMatch[1] : cliOutput;
         } catch (_) {
           // Fallback: try reading from package.json
           try {
