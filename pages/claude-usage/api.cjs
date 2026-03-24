@@ -4,6 +4,10 @@ const fs = require('fs');
 const path = require('path');
 
 const CREDENTIALS_PATH = path.join(process.env.HOME || os.homedir(), '.claude', '.credentials.json');
+const CACHE_TTL_MS = 120_000; // 2 minutes — Anthropic rate limits are strict
+
+// In-memory cache: survives across requests, resets on server restart
+let _cache = { data: null, ts: 0, error: null, errorTs: 0 };
 
 function readCredentials() {
   return JSON.parse(fs.readFileSync(CREDENTIALS_PATH, 'utf-8'));
@@ -23,7 +27,7 @@ function refreshToken() {
   } catch (_) {}
 }
 
-async function fetchUsage() {
+async function fetchUsageFresh() {
   let creds = readCredentials();
 
   if (isTokenExpired(creds)) {
@@ -47,6 +51,14 @@ async function fetchUsage() {
     }
   });
 
+  if (resp.status === 429) {
+    // Rate limited — return stale cache if available, otherwise error
+    if (_cache.data) {
+      return { ..._cache.data, cached: true, stale: true };
+    }
+    return { error: 'Rate limited (429). Try again in a few minutes.' };
+  }
+
   if (!resp.ok) {
     return { error: `API returned ${resp.status}` };
   }
@@ -55,11 +67,40 @@ async function fetchUsage() {
   return { subscription: sub, tier, ...data };
 }
 
+async function fetchUsageCached() {
+  const now = Date.now();
+
+  // Return cached data if fresh
+  if (_cache.data && (now - _cache.ts) < CACHE_TTL_MS) {
+    return { ..._cache.data, cached: true };
+  }
+
+  // Fetch fresh
+  const result = await fetchUsageFresh();
+
+  // Cache successful results
+  if (!result.error) {
+    _cache.data = result;
+    _cache.ts = now;
+    _cache.error = null;
+  } else if (result.error.includes('429') || result.error.includes('rate')) {
+    // On rate limit, return stale cache if available
+    if (_cache.data) {
+      return { ..._cache.data, cached: true, stale: true };
+    }
+    // Cache the error briefly (30s) to avoid hammering
+    _cache.error = result;
+    _cache.errorTs = now;
+  }
+
+  return result;
+}
+
 module.exports = function(ctx) {
   return {
     routes: {
       'GET /usage': async (req, res) => {
-        return await fetchUsage();
+        return await fetchUsageCached();
       }
     }
   };
