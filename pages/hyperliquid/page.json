@@ -1,0 +1,10 @@
+{
+  "id": "hyperliquid",
+  "title": "Hyperliquid",
+  "icon": "💧",
+  "description": "Hyperliquid account balance and trades",
+  "order": 15,
+  "enabled": true,
+  "nav": true,
+  "standalone": true
+}

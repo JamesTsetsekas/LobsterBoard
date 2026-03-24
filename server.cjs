@@ -11,47 +11,6 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const si = require('systeminformation');
-const crypto = require('crypto');
-
-// ─────────────────────────────────────────────
-// ECDH Crypto utilities for encrypted agent communication
-// ─────────────────────────────────────────────
-const ECDH_CURVE = 'prime256v1';
-const AES_ALGORITHM = 'aes-256-gcm';
-const IV_LENGTH = 12;
-const AUTH_TAG_LENGTH = 16;
-
-function generateEcdhKeyPair() {
-  const ecdh = crypto.createECDH(ECDH_CURVE);
-  ecdh.generateKeys();
-  return {
-    publicKey: ecdh.getPublicKey('base64'),
-    privateKey: ecdh.getPrivateKey('base64'),
-  };
-}
-
-function deriveSharedSecret(privateKeyBase64, theirPublicKeyBase64) {
-  const ecdh = crypto.createECDH(ECDH_CURVE);
-  ecdh.setPrivateKey(Buffer.from(privateKeyBase64, 'base64'));
-  const sharedPoint = ecdh.computeSecret(Buffer.from(theirPublicKeyBase64, 'base64'));
-  return crypto.createHash('sha256').update(sharedPoint).digest();
-}
-
-function decryptPayload(encryptedBase64, keyBuffer) {
-  const packed = Buffer.from(encryptedBase64, 'base64');
-  const iv = packed.subarray(0, IV_LENGTH);
-  const authTag = packed.subarray(IV_LENGTH, IV_LENGTH + AUTH_TAG_LENGTH);
-  const ciphertext = packed.subarray(IV_LENGTH + AUTH_TAG_LENGTH);
-  
-  const decipher = crypto.createDecipheriv(AES_ALGORITHM, keyBuffer, iv, { authTagLength: AUTH_TAG_LENGTH });
-  decipher.setAuthTag(authTag);
-  
-  const decrypted = Buffer.concat([
-    decipher.update(ciphertext),
-    decipher.final(),
-  ]);
-  return JSON.parse(decrypted.toString('utf8'));
-}
 
 const PORT = process.env.PORT || 8080;
 const HOST = process.env.HOST || '127.0.0.1';
@@ -59,97 +18,68 @@ const HOST = process.env.HOST || '127.0.0.1';
 // ─────────────────────────────────────────────
 // Pages System — auto-discovery and mounting
 // ─────────────────────────────────────────────
-// Load from both package pages AND user's working directory pages (user overrides package)
-const CWD = process.cwd();
-// When run via npx/bin, LOBSTERBOARD_PKG_DIR tells us where the package is
-const PKG_DIR = process.env.LOBSTERBOARD_PKG_DIR || __dirname;
-const USER_PAGES_DIR = path.join(CWD, 'pages');
-const PKG_PAGES_DIR = path.join(PKG_DIR, 'pages');
-const PAGES_DIRS = [PKG_PAGES_DIR]; // Package pages first
-if (CWD !== PKG_DIR && fs.existsSync(USER_PAGES_DIR)) {
-  PAGES_DIRS.push(USER_PAGES_DIR); // User pages override
-}
-// For backwards compat, PAGES_DIR points to first available (used for _shared)
-const PAGES_DIR = fs.existsSync(USER_PAGES_DIR) ? USER_PAGES_DIR : PKG_PAGES_DIR;
-const USER_PAGES_JSON = path.join(CWD, 'pages.json');
-const PKG_PAGES_JSON = path.join(__dirname, 'pages.json');
-const PAGES_JSON = fs.existsSync(USER_PAGES_JSON) ? USER_PAGES_JSON : PKG_PAGES_JSON;
-// Data always in working directory (user's data)
-const DATA_DIR = path.join(CWD, 'data');
+const PAGES_DIR = path.join(__dirname, 'pages');
+const PAGES_JSON = path.join(__dirname, 'pages.json');
+const DATA_DIR = path.join(__dirname, 'data');
 
 let loadedPages = []; // { id, title, icon, description, order, routes: { 'METHOD /path': handler } }
 
 function loadPages() {
   const pages = [];
-  const seenIds = new Set();
   let overrides = { pages: {} };
   try { overrides = JSON.parse(fs.readFileSync(PAGES_JSON, 'utf8')); } catch (_) {}
 
-  // Scan all page directories (user pages loaded last to override package pages)
-  for (const pagesDir of PAGES_DIRS) {
-    let dirs;
-    try { dirs = fs.readdirSync(pagesDir); } catch (_) { continue; }
+  let dirs;
+  try { dirs = fs.readdirSync(PAGES_DIR); } catch (_) { return pages; }
 
-    for (const dir of dirs) {
-      if (dir.startsWith('_')) continue;
-      const metaPath = path.join(pagesDir, dir, 'page.json');
-      if (!fs.existsSync(metaPath)) continue;
+  for (const dir of dirs) {
+    if (dir.startsWith('_')) continue;
+    const metaPath = path.join(PAGES_DIR, dir, 'page.json');
+    if (!fs.existsSync(metaPath)) continue;
 
-      let meta;
-      try { meta = JSON.parse(fs.readFileSync(metaPath, 'utf8')); } catch (_) { continue; }
+    let meta;
+    try { meta = JSON.parse(fs.readFileSync(metaPath, 'utf8')); } catch (_) { continue; }
 
-      const override = overrides.pages[meta.id] || {};
-      meta.enabled = override.enabled ?? meta.enabled ?? true;
-      meta.order = override.order ?? meta.order ?? 99;
+    const override = overrides.pages[meta.id] || {};
+    meta.enabled = override.enabled ?? meta.enabled ?? true;
+    meta.order = override.order ?? meta.order ?? 99;
 
-      if (!meta.enabled) continue;
+    if (!meta.enabled) continue;
 
-      // If we've seen this ID before (from package), remove it so user page wins
-      if (seenIds.has(meta.id)) {
-        const idx = pages.findIndex(p => p.id === meta.id);
-        if (idx !== -1) pages.splice(idx, 1);
+    // Ensure data dir
+    const dataDir = path.join(DATA_DIR, meta.id);
+    fs.mkdirSync(dataDir, { recursive: true });
+
+    // Load API routes if api.cjs (or api.js) exists
+    let apiPath = path.join(PAGES_DIR, dir, 'api.cjs');
+    if (!fs.existsSync(apiPath)) apiPath = path.join(PAGES_DIR, dir, 'api.js');
+    let routes = {};
+    if (fs.existsSync(apiPath)) {
+      try {
+        const ctx = {
+          dataDir,
+          readData: (filename) => JSON.parse(fs.readFileSync(path.join(dataDir, filename), 'utf8')),
+          writeData: (filename, obj) => {
+            fs.mkdirSync(dataDir, { recursive: true });
+            fs.writeFileSync(path.join(dataDir, filename), JSON.stringify(obj, null, 2));
+          }
+        };
+        const pageModule = require(apiPath)(ctx);
+        routes = pageModule.routes || {};
+      } catch (e) {
+        console.error(`Error loading page API for ${meta.id}:`, e.message);
       }
-      seenIds.add(meta.id);
-
-      // Store which directory this page came from
-      meta._pagesDir = pagesDir;
-
-      // Ensure data dir
-      const dataDir = path.join(DATA_DIR, meta.id);
-      fs.mkdirSync(dataDir, { recursive: true });
-
-      // Load API routes if api.cjs (or api.js) exists
-      let apiPath = path.join(pagesDir, dir, 'api.cjs');
-      if (!fs.existsSync(apiPath)) apiPath = path.join(pagesDir, dir, 'api.js');
-      let routes = {};
-      if (fs.existsSync(apiPath)) {
-        try {
-          const ctx = {
-            dataDir,
-            readData: (filename) => JSON.parse(fs.readFileSync(path.join(dataDir, filename), 'utf8')),
-            writeData: (filename, obj) => {
-              fs.mkdirSync(dataDir, { recursive: true });
-              fs.writeFileSync(path.join(dataDir, filename), JSON.stringify(obj, null, 2));
-            }
-          };
-          const pageModule = require(apiPath)(ctx);
-          routes = pageModule.routes || {};
-        } catch (e) {
-          console.error(`Error loading page API for ${meta.id}:`, e.message);
-        }
-      }
-
-      pages.push({
-        id: meta.id,
-        title: meta.title,
-        icon: meta.icon,
-        description: meta.description,
-        order: meta.order,
-        nav: meta.nav !== false,
-        _pagesDir: pagesDir,
-        routes
-      });
     }
+
+    pages.push({
+      id: meta.id,
+      title: meta.title,
+      icon: meta.icon,
+      description: meta.description,
+      order: meta.order,
+      nav: meta.nav !== false,
+      routes
+    });
   }
 
   return pages.sort((a, b) => a.order - b.order);
@@ -202,16 +132,11 @@ function matchPageRoute(pages, method, pathname, parsedUrl) {
     }
     const page = pages.find(p => p.id === pageId);
     if (page) {
-      const subPath = pagesMatch[2] || '';
-      // Redirect /pages/id to /pages/id/ (trailing slash) for proper relative path resolution
-      if (!subPath) {
-        return { type: 'redirect', location: `/pages/${pageId}/` };
+      const subPath = pagesMatch[2] || '/';
+      if (subPath === '/' || subPath === '') {
+        return { type: 'static', filePath: path.join(PAGES_DIR, pageId, 'index.html') };
       }
-      const pageDir = page._pagesDir || PAGES_DIR;
-      if (subPath === '/') {
-        return { type: 'static', filePath: path.join(pageDir, pageId, 'index.html') };
-      }
-      return { type: 'static', filePath: path.join(pageDir, pageId, subPath.slice(1)) };
+      return { type: 'static', filePath: path.join(PAGES_DIR, pageId, subPath.slice(1)) };
     }
   }
 
@@ -368,191 +293,7 @@ const MIME_TYPES = {
   '.map': 'application/json' // For sourcemaps
 };
 
-// User config files — stored in working directory (survives npm updates)
-const CONFIG_FILE = path.join(CWD, 'config.json');
-const AUTH_FILE = path.join(CWD, 'auth.json');
-const SECRETS_FILE = path.join(CWD, 'secrets.json');
-
-// ─────────────────────────────────────────────
-// Migration: copy data from package dir to user dir (v0.6.2+)
-// ─────────────────────────────────────────────
-function migrateUserData() {
-  const filesToMigrate = ['config.json', 'auth.json', 'secrets.json', 'todos.json', 'notes.json'];
-  const dirsToMigrate = ['data'];
-  let migrated = [];
-
-  for (const file of filesToMigrate) {
-    const userPath = path.join(CWD, file);
-    const pkgPath = path.join(PKG_DIR, file);
-    if (!fs.existsSync(userPath) && fs.existsSync(pkgPath)) {
-      try {
-        fs.copyFileSync(pkgPath, userPath);
-        migrated.push(file);
-      } catch (e) { /* ignore */ }
-    }
-  }
-
-  for (const dir of dirsToMigrate) {
-    const userDir = path.join(CWD, dir);
-    const pkgDir = path.join(PKG_DIR, dir);
-    if (!fs.existsSync(userDir) && fs.existsSync(pkgDir)) {
-      try {
-        fs.cpSync(pkgDir, userDir, { recursive: true });
-        migrated.push(dir + '/');
-      } catch (e) { /* ignore */ }
-    }
-  }
-
-  if (migrated.length > 0) {
-    console.log(`📦 Migrated data to working directory: ${migrated.join(', ')}`);
-  }
-}
-
-// Run migration on startup
-if (CWD !== PKG_DIR) {
-  migrateUserData();
-}
-
-// ─────────────────────────────────────────────
-// Server-side Session Authentication
-// ─────────────────────────────────────────────
-
-const DASHBOARD_PASSWORD = process.env.DASHBOARD_PASSWORD || null;
-const SESSION_TTL_MS = (parseInt(process.env.SESSION_TTL_HOURS) || 24) * 60 * 60 * 1000;
-
-// In-memory session store: token -> expiresAt timestamp
-const sessions = new Map();
-
-// Rate limit store: ip -> { count, resetAt }
-const loginAttempts = new Map();
-const MAX_LOGIN_ATTEMPTS = 5;
-const LOCKOUT_MS = 15 * 60 * 1000;
-
-function generateSessionToken() {
-  return crypto.randomBytes(32).toString('hex'); // 64-char hex
-}
-
-function createSession() {
-  const token = generateSessionToken();
-  sessions.set(token, Date.now() + SESSION_TTL_MS);
-  return token;
-}
-
-function isValidSession(token) {
-  if (!token || !/^[a-f0-9]{64}$/.test(token)) return false;
-  const exp = sessions.get(token);
-  if (!exp) return false;
-  if (Date.now() > exp) { sessions.delete(token); return false; }
-  return true;
-}
-
-function getSessionCookie(req) {
-  const cookie = req.headers.cookie || '';
-  const match = cookie.match(/(?:^|;\s*)lb_session=([a-f0-9]{64})/);
-  return match ? match[1] : null;
-}
-
-function checkPassword(input) {
-  if (!DASHBOARD_PASSWORD || !input) return false;
-  // HMAC both inputs so timingSafeEqual always compares equal-length buffers
-  const inputHash = crypto.createHmac('sha256', 'lb-session-auth').update(String(input)).digest();
-  const correctHash = crypto.createHmac('sha256', 'lb-session-auth').update(DASHBOARD_PASSWORD).digest();
-  return crypto.timingSafeEqual(inputHash, correctHash);
-}
-
-function isRateLimited(ip) {
-  const entry = loginAttempts.get(ip);
-  if (!entry) return false;
-  if (Date.now() > entry.resetAt) { loginAttempts.delete(ip); return false; }
-  return entry.count >= MAX_LOGIN_ATTEMPTS;
-}
-
-function recordFailedAttempt(ip) {
-  const entry = loginAttempts.get(ip) || { count: 0, resetAt: Date.now() + LOCKOUT_MS };
-  entry.count++;
-  loginAttempts.set(ip, entry);
-}
-
-// Clean expired sessions every hour
-setInterval(() => {
-  const now = Date.now();
-  for (const [token, exp] of sessions) {
-    if (now > exp) sessions.delete(token);
-  }
-}, 60 * 60 * 1000);
-
-// ─────────────────────────────────────────────
-// Security helpers
-// ─────────────────────────────────────────────
-
-function hashPin(pin) {
-  return crypto.createHash('sha256').update(pin).digest('hex');
-}
-
-function readJsonFile(filepath, fallback) {
-  try { return JSON.parse(fs.readFileSync(filepath, 'utf8')); } catch (_) { return fallback; }
-}
-
-function writeJsonFile(filepath, data) {
-  fs.writeFileSync(filepath, JSON.stringify(data, null, 2));
-}
-
-function getAuth() { return readJsonFile(AUTH_FILE, {}); }
-function getSecrets() { return readJsonFile(SECRETS_FILE, {}); }
-
-const SENSITIVE_KEYS = ['apiKey', 'api_key', 'token', 'secret', 'password', 'icalUrl'];
-
-function isSensitiveKey(key) {
-  return SENSITIVE_KEYS.includes(key);
-}
-
-function isPublicMode() {
-  const auth = getAuth();
-  return auth.publicMode === true;
-}
-
-/** Mask sensitive fields in config before sending to browser */
-function maskConfig(config) {
-  const secrets = getSecrets();
-  const masked = JSON.parse(JSON.stringify(config));
-  if (masked.widgets) {
-    masked.widgets.forEach(w => {
-      if (!w.properties) return;
-      const widgetSecrets = secrets[w.id] || {};
-      for (const key of Object.keys(w.properties)) {
-        if (isSensitiveKey(key) && (w.properties[key] === '__SECRET__' || widgetSecrets[key])) {
-          w.properties[key] = '••••••••';
-        }
-      }
-    });
-  }
-  return masked;
-}
-
-/** On save: extract sensitive values into secrets.json, replace with __SECRET__ in config */
-function extractSecrets(config) {
-  const secrets = getSecrets();
-  if (config.widgets) {
-    config.widgets.forEach(w => {
-      if (!w.properties) return;
-      for (const key of Object.keys(w.properties)) {
-        if (isSensitiveKey(key)) {
-          const val = w.properties[key];
-          if (val && val !== '__SECRET__' && val !== '••••••••') {
-            if (!secrets[w.id]) secrets[w.id] = {};
-            secrets[w.id][key] = val;
-            w.properties[key] = '__SECRET__';
-          } else if (val === '••••••••') {
-            // User didn't change it — keep existing secret, restore placeholder
-            w.properties[key] = '__SECRET__';
-          }
-        }
-      }
-    });
-  }
-  writeJsonFile(SECRETS_FILE, secrets);
-  return config;
-}
+const CONFIG_FILE = path.join(__dirname, 'config.json');
 
 // Scan templates directory for meta.json files
 function scanTemplates(templatesDir) {
@@ -603,59 +344,22 @@ function parseIcal(text, maxEvents) {
     const block = blocks[i].split('END:VEVENT')[0];
     if (!block) continue;
     const get = (key) => { const m = block.match(new RegExp('^' + key + '(?:;[^:]*)?:(.*)$', 'm')); return m ? m[1].trim() : ''; };
-    const getWithParams = (key) => { const m = block.match(new RegExp('^' + key + '((?:;[^:]*)?):(.*)$', 'm')); return m ? { params: m[1], value: m[2].trim() } : { params: '', value: '' }; };
     const summary = get('SUMMARY').replace(/\\,/g, ',').replace(/\\n/g, ' ');
     const location = get('LOCATION').replace(/\\,/g, ',').replace(/\\n/g, ' ');
     const dtstart = get('DTSTART');
-    const dtstartFull = getWithParams('DTSTART');
-    const dtendFull = getWithParams('DTEND');
+    const dtend = get('DTEND');
     if (!dtstart) continue;
     // Parse iCal date: 20260210T150000Z or 20260210 (all-day)
     const allDay = dtstart.length === 8;
-    // Map Windows/iCal TZID names to UTC offset (hours). Covers common zones.
-    const tzOffsets = {
-      'eastern standard time': -5, 'eastern daylight time': -4, 'us/eastern': -5, 'america/new_york': -5,
-      'central standard time': -6, 'central daylight time': -5, 'us/central': -6, 'america/chicago': -6,
-      'central america standard time': -6,
-      'mountain standard time': -7, 'mountain daylight time': -6, 'us/mountain': -7, 'america/denver': -7,
-      'pacific standard time': -8, 'pacific daylight time': -7, 'us/pacific': -8, 'america/los_angeles': -8,
-      'pacific standard time (mexico)': -8,
-      'india standard time': 5.5, 'asia/kolkata': 5.5,
-      'sri lanka standard time': 5.5,
-      'singapore standard time': 8, 'asia/singapore': 8,
-      'china standard time': 8, 'asia/shanghai': 8,
-      'tokyo standard time': 9, 'asia/tokyo': 9,
-      'e. africa standard time': 3,
-      'romance standard time': 1,
-      'gmt standard time': 0, 'utc': 0, 'gmt': 0,
-      'w. europe standard time': 1, 'europe/berlin': 1, 'europe/paris': 1,
-    };
-    const parseIcalDate = (s, params) => {
+    const parseIcalDate = (s) => {
       if (!s) return null;
       if (s.length === 8) return new Date(s.slice(0,4) + '-' + s.slice(4,6) + '-' + s.slice(6,8) + 'T00:00:00');
       // 20260210T150000Z or 20260210T150000
       const d = s.replace(/Z$/, '');
-      const iso = d.slice(0,4) + '-' + d.slice(4,6) + '-' + d.slice(6,8) + 'T' + d.slice(9,11) + ':' + d.slice(11,13) + ':' + d.slice(13,15);
-      if (s.endsWith('Z')) return new Date(iso + 'Z');
-      // Check for TZID parameter
-      const tzMatch = (params || '').match(/TZID=([^;:]+)/i);
-      if (tzMatch) {
-        const tzName = tzMatch[1].trim().toLowerCase();
-        const offsetHours = tzOffsets[tzName];
-        if (offsetHours !== undefined) {
-          // Convert from source timezone to UTC by appending the UTC offset
-          const sign = offsetHours >= 0 ? '+' : '-';
-          const absH = Math.floor(Math.abs(offsetHours));
-          const absM = Math.round((Math.abs(offsetHours) - absH) * 60);
-          const offsetStr = sign + String(absH).padStart(2, '0') + ':' + String(absM).padStart(2, '0');
-          return new Date(iso + offsetStr);
-        }
-      }
-      // No timezone info — treat as local
-      return new Date(iso);
+      return new Date(d.slice(0,4) + '-' + d.slice(4,6) + '-' + d.slice(6,8) + 'T' + d.slice(9,11) + ':' + d.slice(11,13) + ':' + d.slice(13,15) + (s.endsWith('Z') ? 'Z' : ''));
     };
-    const start = parseIcalDate(dtstart, dtstartFull.params);
-    const end = parseIcalDate(dtendFull.value, dtendFull.params);
+    const start = parseIcalDate(dtstart);
+    const end = parseIcalDate(dtend);
     if (!start || isNaN(start.getTime())) continue;
     // Only future events (for all-day, include today)
     const cutoff = allDay ? new Date(now.getFullYear(), now.getMonth(), now.getDate()) : now;
@@ -666,1317 +370,9 @@ function parseIcal(text, maxEvents) {
   return events.slice(0, maxEvents);
 }
 
-// ─────────────────────────────────────────────
-// AI Usage Providers - Read local credentials and fetch usage
-// ─────────────────────────────────────────────
-
-const AI_PROVIDERS = {
-  claude: {
-    name: 'Claude Code',
-    icon: '🟣',
-    credPaths: [
-      path.join(os.homedir(), '.claude', '.credentials.json'),
-    ],
-    keychainService: 'Claude Code-credentials',
-  },
-  codex: {
-    name: 'Codex CLI',
-    icon: '🟢',
-    credPaths: [
-      process.env.CODEX_HOME ? path.join(process.env.CODEX_HOME, 'auth.json') : null,
-      path.join(os.homedir(), '.config', 'codex', 'auth.json'),
-      path.join(os.homedir(), '.codex', 'auth.json'),
-    ].filter(Boolean),
-    keychainService: 'Codex Auth',
-  },
-  copilot: {
-    name: 'GitHub Copilot',
-    icon: '⚫',
-    keychainService: 'gh:github.com',
-  },
-  cursor: {
-    name: 'Cursor',
-    icon: '🔵',
-    sqlitePath: path.join(os.homedir(), 'Library', 'Application Support', 'Cursor', 'User', 'globalStorage', 'state.vscdb'),
-  },
-  gemini: {
-    name: 'Gemini',
-    icon: '🔷',
-    credPaths: [
-      path.join(os.homedir(), '.gemini', 'oauth_creds.json'),
-    ],
-    settingsPath: path.join(os.homedir(), '.gemini', 'settings.json'),
-  },
-  amp: {
-    name: 'Amp',
-    icon: '⚡',
-    credPaths: [
-      path.join(os.homedir(), '.local', 'share', 'amp', 'secrets.json'),
-    ],
-  },
-  factory: {
-    name: 'Factory',
-    icon: '🏭',
-    credPaths: [
-      path.join(os.homedir(), '.factory', 'auth.json'),
-    ],
-  },
-  kimi: {
-    name: 'Kimi Code',
-    icon: '🌙',
-    credPaths: [
-      path.join(os.homedir(), '.kimi', 'credentials', 'kimi-code.json'),
-    ],
-  },
-  jetbrains: {
-    name: 'JetBrains AI',
-    icon: '🧠',
-    configDirs: [
-      path.join(os.homedir(), 'Library', 'Application Support', 'JetBrains'),
-    ],
-  },
-  minimax: {
-    name: 'MiniMax',
-    icon: '🔶',
-    envKeys: ['MINIMAX_API_KEY', 'MINIMAX_CN_API_KEY', 'MINIMAX_API_TOKEN'],
-  },
-  zai: {
-    name: 'Z.ai',
-    icon: '🇿',
-    envKeys: ['ZAI_API_KEY', 'GLM_API_KEY'],
-  },
-  antigravity: {
-    name: 'Antigravity',
-    icon: '🪐',
-    configPath: path.join(os.homedir(), 'Library', 'Application Support', 'antigravity-usage', 'config.json'),
-    accountsDir: path.join(os.homedir(), 'Library', 'Application Support', 'antigravity-usage', 'accounts'),
-    // OAuth credentials from env vars (get from antigravity-usage or Google Cloud Console)
-    tokenUrl: 'https://oauth2.googleapis.com/token',
-    apiUrl: 'https://cloudcode-pa.googleapis.com/v1internal:fetchAvailableModels',
-  },
-};
-
-// Try to read credentials from file paths, then keychain (macOS)
-function readCredentials(provider) {
-  const config = AI_PROVIDERS[provider];
-  if (!config) return null;
-  
-  // Try file paths first
-  for (const credPath of config.credPaths) {
-    try {
-      if (fs.existsSync(credPath)) {
-        const content = fs.readFileSync(credPath, 'utf8');
-        return { source: 'file', path: credPath, data: JSON.parse(content) };
-      }
-    } catch (e) {
-      // Continue to next path
-    }
-  }
-  
-  // Try macOS keychain (may have multiple entries with different accounts)
-  if (process.platform === 'darwin' && config.keychainService) {
-    const { execSync } = require('child_process');
-    const accounts = [process.env.USER, os.userInfo().username, 'Claude Code', ''].filter(Boolean);
-    
-    for (const account of accounts) {
-      try {
-        const accountArg = account ? `-a "${account}"` : '';
-        const keychainData = execSync(
-          `security find-generic-password -s "${config.keychainService}" ${accountArg} -w 2>/dev/null`,
-          { encoding: 'utf8', timeout: 5000 }
-        ).trim();
-        if (keychainData) {
-          const parsed = JSON.parse(keychainData);
-          // Check if this token is valid (not expired)
-          const oauth = parsed.claudeAiOauth || parsed;
-          if (oauth.expiresAt && oauth.expiresAt > Date.now()) {
-            return { source: 'keychain', service: config.keychainService, account, data: parsed };
-          }
-          // If no expiry or expired, keep looking but save as fallback
-          if (!config._fallbackCreds) {
-            config._fallbackCreds = { source: 'keychain', service: config.keychainService, account, data: parsed };
-          }
-        }
-      } catch (e) {
-        // Try next account
-      }
-    }
-    // Return fallback if we found expired creds but nothing valid
-    if (config._fallbackCreds) {
-      const result = config._fallbackCreds;
-      delete config._fallbackCreds;
-      return result;
-    }
-  }
-  
-  return null;
-}
-
-// Fetch Claude usage
-async function fetchClaudeUsage() {
-  const baseInfo = {
-    provider: 'claude',
-    name: AI_PROVIDERS.claude.name,
-    icon: AI_PROVIDERS.claude.icon,
-  };
-  
-  const creds = readCredentials('claude');
-  if (!creds) return { ...baseInfo, error: 'Not logged in. Run `claude` to authenticate.' };
-  
-  const oauthData = creds.data.claudeAiOauth;
-  if (!oauthData?.accessToken) return { ...baseInfo, error: 'No access token found.' };
-  
-  let accessToken = oauthData.accessToken;
-  
-  // Helper to make the API request
-  async function makeRequest(token) {
-    const resp = await fetch('https://api.anthropic.com/api/oauth/usage', {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-        'anthropic-beta': 'oauth-2025-04-20',
-        'User-Agent': 'claude-code/1.0.0',
-        'X-Client-Name': 'claude-code',
-      },
-    });
-    return resp;
-  }
-  
-  // Try with current token first
-  let resp = await makeRequest(accessToken);
-  
-  // If unauthorized, try to refresh
-  if (resp.status === 401 || resp.status === 403) {
-    if (!oauthData.refreshToken) {
-      return { ...baseInfo, error: 'Session expired. Run `claude` to re-authenticate.' };
-    }
-    try {
-      const refreshed = await refreshClaudeToken(oauthData.refreshToken, creds.source === 'file' ? creds.path : null);
-      if (refreshed.error) {
-        return { ...baseInfo, error: 'Session expired. Run `claude` to re-authenticate.' };
-      }
-      accessToken = refreshed.accessToken;
-      resp = await makeRequest(accessToken);
-    } catch (e) {
-      return { ...baseInfo, error: 'Session expired. Run `claude` to re-authenticate.' };
-    }
-  }
-  
-  try {
-    if (!resp.ok) {
-      if (resp.status === 429) {
-        return { ...baseInfo, error: '429 rate limited - using cache' };
-      }
-      return { ...baseInfo, error: `API error (HTTP ${resp.status})` };
-    }
-    
-    const data = await resp.json();
-    
-    // Normalize response
-    const metrics = [];
-    
-    if (data.five_hour) {
-      metrics.push({
-        label: 'Session (5h)',
-        used: data.five_hour.utilization,
-        limit: 100,
-        format: 'percent',
-        resetsAt: data.five_hour.resets_at,
-      });
-    }
-    
-    if (data.seven_day) {
-      metrics.push({
-        label: 'Weekly',
-        used: data.seven_day.utilization,
-        limit: 100,
-        format: 'percent',
-        resetsAt: data.seven_day.resets_at,
-      });
-    }
-    
-    if (data.seven_day_opus) {
-      metrics.push({
-        label: 'Opus Weekly',
-        used: data.seven_day_opus.utilization,
-        limit: 100,
-        format: 'percent',
-        resetsAt: data.seven_day_opus.resets_at,
-      });
-    }
-    
-    if (data.extra_usage?.is_enabled) {
-      metrics.push({
-        label: 'Extra Credits',
-        used: data.extra_usage.used_credits / 100,
-        limit: data.extra_usage.monthly_limit ? data.extra_usage.monthly_limit / 100 : null,
-        format: 'dollars',
-      });
-    }
-    
-    return {
-      provider: 'claude',
-      name: AI_PROVIDERS.claude.name,
-      icon: AI_PROVIDERS.claude.icon,
-      plan: oauthData.subscriptionType || 'unknown',
-      metrics,
-    };
-  } catch (e) {
-    return { ...baseInfo, error: 'Network error: ' + e.message };
-  }
-}
-
-// Refresh Claude token
-async function refreshClaudeToken(refreshToken, credPath) {
-  try {
-    const resp = await fetch('https://platform.claude.com/v1/oauth/token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        grant_type: 'refresh_token',
-        refresh_token: refreshToken,
-        client_id: '9d1c250a-e61b-44d9-88ed-5944d1962f5e',
-        scope: 'user:profile user:inference user:sessions:claude_code user:mcp_servers',
-      }),
-    });
-    
-    if (!resp.ok) return { error: 'Refresh failed (HTTP ' + resp.status + ')' };
-    
-    const data = await resp.json();
-    
-    // Update credentials file
-    if (credPath && fs.existsSync(credPath)) {
-      try {
-        const existing = JSON.parse(fs.readFileSync(credPath, 'utf8'));
-        existing.claudeAiOauth.accessToken = data.access_token;
-        if (data.refresh_token) existing.claudeAiOauth.refreshToken = data.refresh_token;
-        existing.claudeAiOauth.expiresAt = Date.now() + (data.expires_in * 1000);
-        fs.writeFileSync(credPath, JSON.stringify(existing, null, 2));
-      } catch (e) {
-        // Non-fatal: token still works for this request
-      }
-    }
-    
-    return { accessToken: data.access_token };
-  } catch (e) {
-    return { error: e.message };
-  }
-}
-
-// Fetch Codex usage
-async function fetchCodexUsage() {
-  const baseInfo = {
-    provider: 'codex',
-    name: AI_PROVIDERS.codex.name,
-    icon: AI_PROVIDERS.codex.icon,
-  };
-  
-  const creds = readCredentials('codex');
-  if (!creds) return { ...baseInfo, error: 'Not logged in. Run `codex auth` to authenticate.' };
-  
-  const tokens = creds.data.tokens;
-  if (!tokens?.access_token) return { ...baseInfo, error: 'No access token found.' };
-  
-  try {
-    const headers = {
-      'Authorization': `Bearer ${tokens.access_token}`,
-      'Accept': 'application/json',
-    };
-    if (tokens.account_id) {
-      headers['ChatGPT-Account-Id'] = tokens.account_id;
-    }
-    
-    const resp = await fetch('https://chatgpt.com/backend-api/wham/usage', { headers });
-    
-    if (!resp.ok) {
-      if (resp.status === 401 || resp.status === 403) {
-        return { ...baseInfo, error: 'Session expired. Run `codex auth` to re-authenticate.' };
-      }
-      return { ...baseInfo, error: `API error (HTTP ${resp.status})` };
-    }
-    
-    const data = await resp.json();
-    
-    // Normalize response
-    const metrics = [];
-    
-    if (data.rate_limit?.primary_window) {
-      const pw = data.rate_limit.primary_window;
-      metrics.push({
-        label: 'Session (5h)',
-        used: pw.used_percent,
-        limit: 100,
-        format: 'percent',
-        resetsAt: pw.reset_at ? new Date(pw.reset_at * 1000).toISOString() : null,
-      });
-    }
-    
-    if (data.rate_limit?.secondary_window) {
-      const sw = data.rate_limit.secondary_window;
-      metrics.push({
-        label: 'Weekly',
-        used: sw.used_percent,
-        limit: 100,
-        format: 'percent',
-        resetsAt: sw.reset_at ? new Date(sw.reset_at * 1000).toISOString() : null,
-      });
-    }
-    
-    if (data.code_review_rate_limit?.primary_window) {
-      const cr = data.code_review_rate_limit.primary_window;
-      metrics.push({
-        label: 'Code Reviews',
-        used: cr.used_percent,
-        limit: 100,
-        format: 'percent',
-        resetsAt: cr.reset_at ? new Date(cr.reset_at * 1000).toISOString() : null,
-      });
-    }
-    
-    if (data.credits?.has_credits) {
-      metrics.push({
-        label: 'Credits',
-        used: null,
-        remaining: data.credits.balance,
-        format: 'dollars',
-        unlimited: data.credits.unlimited,
-      });
-    }
-    
-    return {
-      provider: 'codex',
-      name: AI_PROVIDERS.codex.name,
-      icon: AI_PROVIDERS.codex.icon,
-      plan: data.plan_type || 'unknown',
-      metrics,
-    };
-  } catch (e) {
-    return { ...baseInfo, error: 'Network error: ' + e.message };
-  }
-}
-
-// Fetch GitHub Copilot usage
-async function fetchCopilotUsage() {
-  const baseInfo = {
-    provider: 'copilot',
-    name: AI_PROVIDERS.copilot.name,
-    icon: AI_PROVIDERS.copilot.icon,
-  };
-  
-  // Try to get token from gh CLI keychain
-  let token = null;
-  if (process.platform === 'darwin') {
-    try {
-      const { execSync } = require('child_process');
-      token = execSync('security find-generic-password -s "gh:github.com" -w 2>/dev/null', 
-        { encoding: 'utf8', timeout: 5000 }).trim();
-    } catch (e) {}
-  }
-  
-  if (!token) {
-    return { ...baseInfo, error: 'Not logged in. Run `gh auth login` first.' };
-  }
-  
-  try {
-    const resp = await fetch('https://api.github.com/copilot_internal/user', {
-      headers: {
-        'Authorization': `token ${token}`,
-        'Accept': 'application/json',
-        'Editor-Version': 'vscode/1.96.2',
-        'Editor-Plugin-Version': 'copilot-chat/0.26.7',
-        'User-Agent': 'GitHubCopilotChat/0.26.7',
-        'X-Github-Api-Version': '2025-04-01',
-      },
-    });
-    
-    if (!resp.ok) {
-      if (resp.status === 401 || resp.status === 403) {
-        return { ...baseInfo, error: 'Token invalid. Run `gh auth login` to re-auth.' };
-      }
-      return { ...baseInfo, error: `API error (HTTP ${resp.status})` };
-    }
-    
-    const data = await resp.json();
-    const metrics = [];
-    
-    // Paid tier
-    if (data.quota_snapshots) {
-      if (data.quota_snapshots.premium_interactions) {
-        const p = data.quota_snapshots.premium_interactions;
-        metrics.push({
-          label: 'Premium',
-          used: 100 - p.percent_remaining,
-          limit: 100,
-          format: 'percent',
-          resetsAt: data.quota_reset_date,
-        });
-      }
-      if (data.quota_snapshots.chat) {
-        const c = data.quota_snapshots.chat;
-        metrics.push({
-          label: 'Chat',
-          used: 100 - c.percent_remaining,
-          limit: 100,
-          format: 'percent',
-          resetsAt: data.quota_reset_date,
-        });
-      }
-    }
-    
-    // Free tier
-    if (data.limited_user_quotas && data.monthly_quotas) {
-      const chatUsed = data.monthly_quotas.chat - data.limited_user_quotas.chat;
-      const compUsed = data.monthly_quotas.completions - data.limited_user_quotas.completions;
-      metrics.push({
-        label: 'Chat',
-        used: (chatUsed / data.monthly_quotas.chat) * 100,
-        limit: 100,
-        format: 'percent',
-        resetsAt: data.limited_user_reset_date,
-      });
-      metrics.push({
-        label: 'Completions',
-        used: (compUsed / data.monthly_quotas.completions) * 100,
-        limit: 100,
-        format: 'percent',
-        resetsAt: data.limited_user_reset_date,
-      });
-    }
-    
-    return {
-      ...baseInfo,
-      plan: data.copilot_plan || 'unknown',
-      metrics,
-    };
-  } catch (e) {
-    return { ...baseInfo, error: 'Network error: ' + e.message };
-  }
-}
-
-// Fetch Cursor usage
-async function fetchCursorUsage() {
-  const baseInfo = {
-    provider: 'cursor',
-    name: AI_PROVIDERS.cursor.name,
-    icon: AI_PROVIDERS.cursor.icon,
-  };
-  
-  const dbPath = AI_PROVIDERS.cursor.sqlitePath;
-  if (!fs.existsSync(dbPath)) {
-    return { ...baseInfo, error: 'Cursor not installed.' };
-  }
-  
-  // Read token from SQLite
-  let accessToken = null;
-  let membershipType = null;
-  try {
-    const { execSync } = require('child_process');
-    accessToken = execSync(`sqlite3 "${dbPath}" "SELECT value FROM ItemTable WHERE key = 'cursorAuth/accessToken'" 2>/dev/null`,
-      { encoding: 'utf8', timeout: 5000 }).trim();
-    membershipType = execSync(`sqlite3 "${dbPath}" "SELECT value FROM ItemTable WHERE key = 'cursorAuth/stripeMembershipType'" 2>/dev/null`,
-      { encoding: 'utf8', timeout: 5000 }).trim();
-  } catch (e) {}
-  
-  if (!accessToken) {
-    return { ...baseInfo, error: 'Not logged in. Sign in to Cursor.' };
-  }
-  
-  try {
-    const resp = await fetch('https://api2.cursor.sh/aiserver.v1.DashboardService/GetCurrentPeriodUsage', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-        'Connect-Protocol-Version': '1',
-      },
-      body: '{}',
-    });
-    
-    if (!resp.ok) {
-      if (resp.status === 401 || resp.status === 403) {
-        return { ...baseInfo, error: 'Session expired. Re-sign in to Cursor.' };
-      }
-      return { ...baseInfo, error: `API error (HTTP ${resp.status})` };
-    }
-    
-    const data = await resp.json();
-    const metrics = [];
-    
-    if (data.planUsage) {
-      const pu = data.planUsage;
-      if (typeof pu.totalPercentUsed === 'number' && isFinite(pu.totalPercentUsed)) {
-        metrics.push({
-          label: 'Total Usage',
-          used: pu.totalPercentUsed,
-          limit: 100,
-          format: 'percent',
-        });
-      }
-      if (typeof pu.autoPercentUsed === 'number' && isFinite(pu.autoPercentUsed)) {
-        metrics.push({
-          label: 'Auto',
-          used: pu.autoPercentUsed,
-          limit: 100,
-          format: 'percent',
-        });
-      }
-      if (typeof pu.apiPercentUsed === 'number' && isFinite(pu.apiPercentUsed)) {
-        metrics.push({
-          label: 'API',
-          used: pu.apiPercentUsed,
-          limit: 100,
-          format: 'percent',
-        });
-      }
-    }
-    
-    return {
-      ...baseInfo,
-      plan: membershipType || 'unknown',
-      metrics,
-    };
-  } catch (e) {
-    return { ...baseInfo, error: 'Network error: ' + e.message };
-  }
-}
-
-// Refresh Gemini CLI OAuth token.
-// These client credentials are intentionally public — gemini-cli is an installed
-// application and Google's own guidance permits embedding them in the source:
-// https://github.com/google-gemini/gemini-cli/blob/main/packages/core/src/code_assist/oauth2.ts
-const GEMINI_CLIENT_ID = '681255809395-oo8ft2oprdrnp9e3aqf6av3hmdib135j.apps.googleusercontent.com';
-const GEMINI_CLIENT_SECRET = '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';
-
-async function refreshGeminiToken(credsPath, creds) {
-  if (!creds.refresh_token) return { error: 'No refresh token available.' };
-  try {
-    const resp = await fetch('https://oauth2.googleapis.com/token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        grant_type: 'refresh_token',
-        refresh_token: creds.refresh_token,
-        client_id: GEMINI_CLIENT_ID,
-        client_secret: GEMINI_CLIENT_SECRET,
-      }),
-    });
-    if (!resp.ok) return { error: 'Refresh failed (HTTP ' + resp.status + ')' };
-    const data = await resp.json();
-    const updated = {
-      ...creds,
-      access_token: data.access_token,
-      expiry_date: Date.now() + (data.expires_in * 1000),
-    };
-    if (data.refresh_token) updated.refresh_token = data.refresh_token;
-    if (data.id_token) updated.id_token = data.id_token;
-    try { fs.writeFileSync(credsPath, JSON.stringify(updated, null, 2)); } catch (_) {}
-    return { accessToken: data.access_token, creds: updated };
-  } catch (e) {
-    return { error: e.message };
-  }
-}
-
-// Fetch Gemini usage
-async function fetchGeminiUsage() {
-  const baseInfo = {
-    provider: 'gemini',
-    name: AI_PROVIDERS.gemini.name,
-    icon: AI_PROVIDERS.gemini.icon,
-  };
-
-  const credsPath = AI_PROVIDERS.gemini.credPaths[0];
-  if (!fs.existsSync(credsPath)) {
-    return { ...baseInfo, error: 'Not logged in. Run `gemini auth` first.' };
-  }
-
-  let creds;
-  try {
-    creds = JSON.parse(fs.readFileSync(credsPath, 'utf8'));
-  } catch (e) {
-    return { ...baseInfo, error: 'Invalid credentials file.' };
-  }
-
-  if (!creds.access_token && !creds.refresh_token) {
-    return { ...baseInfo, error: 'No access token found.' };
-  }
-
-  // Proactively refresh if the token is expired or expires within 5 minutes.
-  // This handles the case where gemini-cli on another machine has rotated the
-  // shared OAuth token, leaving the stored access_token stale.
-  const FIVE_MINUTES = 5 * 60 * 1000;
-  if (!creds.access_token || (creds.expiry_date && Date.now() >= creds.expiry_date - FIVE_MINUTES)) {
-    const refreshed = await refreshGeminiToken(credsPath, creds);
-    if (refreshed.error) return { ...baseInfo, error: 'Session expired. Run `gemini auth` to re-auth.' };
-    creds = refreshed.creds;
-  }
-
-  const callQuotaApi = (token) => fetch('https://cloudcode-pa.googleapis.com/v1internal:retrieveUserQuota', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-    body: '{}',
-  });
-
-  try {
-    let resp = await callQuotaApi(creds.access_token);
-
-    // On auth failure, attempt a token refresh and retry once before giving up.
-    if (resp.status === 401 || resp.status === 403) {
-      const refreshed = await refreshGeminiToken(credsPath, creds);
-      if (refreshed.error) return { ...baseInfo, error: 'Session expired. Run `gemini auth` to re-auth.' };
-      creds = refreshed.creds;
-      resp = await callQuotaApi(creds.access_token);
-    }
-
-    if (!resp.ok) {
-      if (resp.status === 401 || resp.status === 403) {
-        return { ...baseInfo, error: 'Session expired. Run `gemini auth` to re-auth.' };
-      }
-      return { ...baseInfo, error: `API error (HTTP ${resp.status})` };
-    }
-    
-    const data = await resp.json();
-    const metrics = [];
-    
-    // Parse quota buckets (API returns 'buckets' with 'remainingFraction')
-    const buckets = data.buckets || data.quotaBuckets || [];
-    
-    // Track all non-Vertex Gemini request buckets instead of a hardcoded
-    // 2.x allowlist so new Gemini CLI quota windows surface automatically.
-    const seen = new Set();
-    
-    for (const bucket of buckets) {
-      if (bucket.tokenType !== 'REQUESTS') continue;
-      // Skip vertex variants
-      if (bucket.modelId?.includes('_vertex')) continue;
-      // Only show Gemini model buckets
-      if (!bucket.modelId?.startsWith('gemini-')) continue;
-      // Dedupe
-      if (seen.has(bucket.modelId)) continue;
-      seen.add(bucket.modelId);
-      
-      const remaining = bucket.remainingFraction ?? 1;
-      metrics.push({
-        label: bucket.modelId || 'Quota',
-        used: Math.round((1 - remaining) * 100),
-        limit: 100,
-        format: 'percent',
-        resetTime: bucket.resetTime,
-      });
-    }
-    
-    metrics.sort((a, b) => String(a.label || '').localeCompare(String(b.label || '')));
-
-    return {
-      ...baseInfo,
-      plan: 'Gemini CLI',
-      metrics,
-    };
-  } catch (e) {
-    return { ...baseInfo, error: 'Network error: ' + e.message };
-  }
-}
-
-// Fetch Amp usage
-async function fetchAmpUsage() {
-  const baseInfo = {
-    provider: 'amp',
-    name: AI_PROVIDERS.amp.name,
-    icon: AI_PROVIDERS.amp.icon,
-  };
-  
-  const secretsPath = AI_PROVIDERS.amp.credPaths[0];
-  if (!fs.existsSync(secretsPath)) {
-    return { ...baseInfo, error: 'Amp not installed. Install Amp Code to get started.' };
-  }
-  
-  let secrets;
-  try {
-    secrets = JSON.parse(fs.readFileSync(secretsPath, 'utf8'));
-  } catch (e) {
-    return { ...baseInfo, error: 'Invalid secrets file.' };
-  }
-  
-  const apiKey = secrets['apiKey@https://ampcode.com/'];
-  if (!apiKey) {
-    return { ...baseInfo, error: 'Not logged in. Sign in to Amp Code.' };
-  }
-  
-  try {
-    const resp = await fetch('https://ampcode.com/api/internal', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ method: 'userDisplayBalanceInfo', params: {} }),
-    });
-    
-    if (!resp.ok) {
-      if (resp.status === 401 || resp.status === 403) {
-        return { ...baseInfo, error: 'Session expired. Re-authenticate in Amp Code.' };
-      }
-      return { ...baseInfo, error: `API error (HTTP ${resp.status})` };
-    }
-    
-    const data = await resp.json();
-    const metrics = [];
-    
-    // Parse displayText for usage info
-    const displayText = data.result?.displayText || data.displayText || '';
-    
-    // Free tier: "$X/$Y remaining"
-    const freeMatch = displayText.match(/\$(\d+(?:\.\d+)?)\s*\/\s*\$(\d+(?:\.\d+)?)\s+remaining/i);
-    if (freeMatch) {
-      const remaining = parseFloat(freeMatch[1]);
-      const total = parseFloat(freeMatch[2]);
-      const used = total - remaining;
-      metrics.push({
-        label: 'Free',
-        used: (used / total) * 100,
-        limit: 100,
-        format: 'percent',
-      });
-    }
-    
-    // Credits: "Individual credits: $X remaining"
-    const creditsMatch = displayText.match(/Individual credits:\s*\$(\d+(?:\.\d+)?)/i);
-    if (creditsMatch) {
-      metrics.push({
-        label: 'Credits',
-        used: null,
-        remaining: parseFloat(creditsMatch[1]),
-        format: 'dollars',
-      });
-    }
-    
-    return {
-      ...baseInfo,
-      plan: freeMatch ? 'Free' : (creditsMatch ? 'Credits' : 'unknown'),
-      metrics,
-    };
-  } catch (e) {
-    return { ...baseInfo, error: 'Network error: ' + e.message };
-  }
-}
-
-// Fetch Factory (Droid) usage
-async function fetchFactoryUsage() {
-  const baseInfo = { provider: 'factory', name: AI_PROVIDERS.factory.name, icon: AI_PROVIDERS.factory.icon };
-  const authPath = AI_PROVIDERS.factory.credPaths[0];
-  
-  if (!fs.existsSync(authPath)) {
-    return { ...baseInfo, error: 'Not logged in. Run `droid` to authenticate.' };
-  }
-  
-  let auth;
-  try { auth = JSON.parse(fs.readFileSync(authPath, 'utf8')); } 
-  catch (e) { return { ...baseInfo, error: 'Invalid auth file.' }; }
-  
-  if (!auth.access_token) return { ...baseInfo, error: 'No access token found.' };
-  
-  try {
-    const resp = await fetch('https://api.factory.ai/api/organization/subscription/usage', {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${auth.access_token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ useCache: true }),
-    });
-    
-    if (!resp.ok) {
-      if (resp.status === 401 || resp.status === 403) return { ...baseInfo, error: 'Session expired. Run `droid` to re-auth.' };
-      return { ...baseInfo, error: `API error (HTTP ${resp.status})` };
-    }
-    
-    const data = await resp.json();
-    const metrics = [];
-    
-    if (data.usage?.standard) {
-      const s = data.usage.standard;
-      metrics.push({ label: 'Standard', used: (s.usedRatio || 0) * 100, limit: 100, format: 'percent' });
-    }
-    if (data.usage?.premium?.totalAllowance > 0) {
-      const p = data.usage.premium;
-      metrics.push({ label: 'Premium', used: (p.usedRatio || 0) * 100, limit: 100, format: 'percent' });
-    }
-    
-    const allowance = data.usage?.standard?.totalAllowance || 0;
-    const plan = allowance >= 200000000 ? 'Max' : allowance >= 20000000 ? 'Pro' : 'Basic';
-    
-    return { ...baseInfo, plan, metrics };
-  } catch (e) { return { ...baseInfo, error: 'Network error: ' + e.message }; }
-}
-
-// Fetch Kimi Code usage
-async function fetchKimiUsage() {
-  const baseInfo = { provider: 'kimi', name: AI_PROVIDERS.kimi.name, icon: AI_PROVIDERS.kimi.icon };
-  const credPath = AI_PROVIDERS.kimi.credPaths[0];
-  
-  if (!fs.existsSync(credPath)) {
-    return { ...baseInfo, error: 'Not logged in. Run `kimi login` first.' };
-  }
-  
-  let creds;
-  try { creds = JSON.parse(fs.readFileSync(credPath, 'utf8')); }
-  catch (e) { return { ...baseInfo, error: 'Invalid credentials file.' }; }
-  
-  if (!creds.access_token) return { ...baseInfo, error: 'No access token found.' };
-  
-  try {
-    const resp = await fetch('https://api.kimi.com/coding/v1/usages', {
-      headers: { 'Authorization': `Bearer ${creds.access_token}`, 'Accept': 'application/json' },
-    });
-    
-    if (!resp.ok) {
-      if (resp.status === 401 || resp.status === 403) return { ...baseInfo, error: 'Session expired. Run `kimi login` to re-auth.' };
-      return { ...baseInfo, error: `API error (HTTP ${resp.status})` };
-    }
-    
-    const data = await resp.json();
-    const metrics = [];
-    
-    if (data.usage) {
-      const used = parseInt(data.usage.limit) - parseInt(data.usage.remaining);
-      const total = parseInt(data.usage.limit);
-      metrics.push({ label: 'Session', used: (used / total) * 100, limit: 100, format: 'percent', resetsAt: data.usage.resetTime });
-    }
-    
-    const plan = data.user?.membership?.level?.replace('LEVEL_', '') || 'unknown';
-    return { ...baseInfo, plan, metrics };
-  } catch (e) { return { ...baseInfo, error: 'Network error: ' + e.message }; }
-}
-
-// Fetch JetBrains AI usage
-async function fetchJetbrainsUsage() {
-  const baseInfo = { provider: 'jetbrains', name: AI_PROVIDERS.jetbrains.name, icon: AI_PROVIDERS.jetbrains.icon };
-  const configDir = AI_PROVIDERS.jetbrains.configDirs[0];
-  
-  if (!fs.existsSync(configDir)) {
-    return { ...baseInfo, error: 'JetBrains IDE not detected.' };
-  }
-  
-  // Find latest IDE config with quota file
-  let quotaData = null;
-  try {
-    const dirs = fs.readdirSync(configDir).filter(d => !d.startsWith('.'));
-    for (const dir of dirs.sort().reverse()) {
-      const quotaPath = path.join(configDir, dir, 'options', 'AIAssistantQuotaManager2.xml');
-      if (fs.existsSync(quotaPath)) {
-        const content = fs.readFileSync(quotaPath, 'utf8');
-        // Simple XML parsing for quota values
-        const currentMatch = content.match(/<option name="current" value="(\d+)"/);
-        const maxMatch = content.match(/<option name="maximum" value="(\d+)"/);
-        if (currentMatch && maxMatch) {
-          quotaData = { current: parseInt(currentMatch[1]), maximum: parseInt(maxMatch[1]) };
-          break;
-        }
-      }
-    }
-  } catch (e) { /* ignore */ }
-  
-  if (!quotaData) {
-    return { ...baseInfo, error: 'JetBrains AI quota not found. Open AI Assistant in IDE.' };
-  }
-  
-  const used = (quotaData.current / quotaData.maximum) * 100;
-  return { ...baseInfo, plan: 'AI Assistant', metrics: [{ label: 'Quota', used, limit: 100, format: 'percent' }] };
-}
-
-// Fetch MiniMax usage
-async function fetchMinimaxUsage() {
-  const baseInfo = { provider: 'minimax', name: AI_PROVIDERS.minimax.name, icon: AI_PROVIDERS.minimax.icon };
-  
-  const apiKey = process.env.MINIMAX_API_KEY || process.env.MINIMAX_CN_API_KEY || process.env.MINIMAX_API_TOKEN;
-  if (!apiKey) {
-    return { ...baseInfo, error: 'Set MINIMAX_API_KEY environment variable.' };
-  }
-  
-  try {
-    const resp = await fetch('https://api.minimax.io/v1/api/openplatform/coding_plan/remains', {
-      headers: { 'Authorization': `Bearer ${apiKey}`, 'Accept': 'application/json' },
-    });
-    
-    if (!resp.ok) {
-      if (resp.status === 401 || resp.status === 403) return { ...baseInfo, error: 'Invalid API key.' };
-      return { ...baseInfo, error: `API error (HTTP ${resp.status})` };
-    }
-    
-    const data = await resp.json();
-    if (data.base_resp?.status_code !== 0) {
-      return { ...baseInfo, error: data.base_resp?.status_msg || 'API error' };
-    }
-    
-    const metrics = [];
-    const model = data.model_remains?.[0];
-    if (model) {
-      const total = model.current_interval_total_count || 100;
-      const remaining = model.current_interval_usage_count || model.current_interval_remaining_count || 0;
-      const used = ((total - remaining) / total) * 100;
-      metrics.push({ label: 'Session', used, limit: 100, format: 'percent' });
-    }
-    
-    return { ...baseInfo, plan: data.current_subscribe_title || 'MiniMax', metrics };
-  } catch (e) { return { ...baseInfo, error: 'Network error: ' + e.message }; }
-}
-
-// Fetch Z.ai usage
-async function fetchZaiUsage() {
-  const baseInfo = { provider: 'zai', name: AI_PROVIDERS.zai.name, icon: AI_PROVIDERS.zai.icon };
-  
-  const apiKey = process.env.ZAI_API_KEY || process.env.GLM_API_KEY;
-  if (!apiKey) {
-    return { ...baseInfo, error: 'Set ZAI_API_KEY environment variable.' };
-  }
-  
-  try {
-    const resp = await fetch('https://api.z.ai/api/monitor/usage/quota/limit', {
-      headers: { 'Authorization': `Bearer ${apiKey}`, 'Accept': 'application/json' },
-    });
-    
-    if (!resp.ok) {
-      if (resp.status === 401 || resp.status === 403) return { ...baseInfo, error: 'Invalid API key.' };
-      return { ...baseInfo, error: `API error (HTTP ${resp.status})` };
-    }
-    
-    const data = await resp.json();
-    if (data.code !== 200) {
-      return { ...baseInfo, error: data.message || 'API error' };
-    }
-    
-    const metrics = [];
-    for (const limit of (data.data?.limits || [])) {
-      if (limit.type === 'TOKENS_LIMIT') {
-        metrics.push({ label: 'Session', used: limit.percentage || 0, limit: 100, format: 'percent' });
-      } else if (limit.type === 'TIME_LIMIT') {
-        metrics.push({ label: 'Weekly', used: limit.percentage || 0, limit: 100, format: 'percent' });
-      }
-    }
-    
-    return { ...baseInfo, plan: 'GLM Coding', metrics };
-  } catch (e) { return { ...baseInfo, error: 'Network error: ' + e.message }; }
-}
-
-async function fetchAntigravityUsage() {
-  const baseInfo = { provider: 'antigravity', name: AI_PROVIDERS.antigravity.name, icon: AI_PROVIDERS.antigravity.icon };
-  const config = AI_PROVIDERS.antigravity;
-  
-  // Read config to get active account
-  let activeAccount;
-  try {
-    const configData = JSON.parse(fs.readFileSync(config.configPath, 'utf8'));
-    activeAccount = configData.activeAccount;
-  } catch (_) {
-    return { ...baseInfo, error: 'Run: antigravity-usage login' };
-  }
-  
-  if (!activeAccount) {
-    return { ...baseInfo, error: 'No active account configured.' };
-  }
-  
-  // Read tokens for active account
-  const tokensPath = path.join(config.accountsDir, activeAccount, 'tokens.json');
-  let tokens;
-  try {
-    tokens = JSON.parse(fs.readFileSync(tokensPath, 'utf8'));
-  } catch (_) {
-    return { ...baseInfo, error: 'Token file not found for ' + activeAccount };
-  }
-  
-  // Refresh token if expired
-  let accessToken = tokens.accessToken;
-  if (tokens.expiresAt && Date.now() > tokens.expiresAt - 60000) {
-    // Need OAuth credentials from env vars for token refresh
-    const clientId = process.env.ANTIGRAVITY_CLIENT_ID;
-    const clientSecret = process.env.ANTIGRAVITY_CLIENT_SECRET;
-    
-    if (!clientId || !clientSecret) {
-      return { ...baseInfo, error: 'Token expired. Run `antigravity-usage` to refresh, or set ANTIGRAVITY_CLIENT_ID/SECRET env vars.' };
-    }
-    
-    try {
-      const refreshResp = await fetch(config.tokenUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({
-          client_id: clientId,
-          client_secret: clientSecret,
-          refresh_token: tokens.refreshToken,
-          grant_type: 'refresh_token',
-        }),
-      });
-      if (!refreshResp.ok) {
-        return { ...baseInfo, error: 'Token refresh failed (HTTP ' + refreshResp.status + ')' };
-      }
-      const refreshData = await refreshResp.json();
-      accessToken = refreshData.access_token;
-      // Update stored tokens
-      tokens.accessToken = accessToken;
-      tokens.expiresAt = Date.now() + (refreshData.expires_in * 1000);
-      try { fs.writeFileSync(tokensPath, JSON.stringify(tokens, null, 2)); } catch (_) {}
-    } catch (e) {
-      return { ...baseInfo, error: 'Token refresh error: ' + e.message };
-    }
-  }
-  
-  // Fetch available models with quota info
-  try {
-    const resp = await fetch(config.apiUrl, {
-      method: 'POST',
-      headers: {
-        'Authorization': 'Bearer ' + accessToken,
-        'Content-Type': 'application/json',
-        'User-Agent': 'antigravity',
-      },
-      body: JSON.stringify({ project: tokens.projectId }),
-    });
-    
-    if (!resp.ok) {
-      if (resp.status === 401 || resp.status === 403) return { ...baseInfo, error: 'Auth failed. Re-run: antigravity-usage login' };
-      if (resp.status === 429) return { ...baseInfo, error: 'Rate limited. Try again later.' };
-      return { ...baseInfo, error: 'API error (HTTP ' + resp.status + ')' };
-    }
-    
-    const data = await resp.json();
-    const models = data.models || {};
-    
-    // Build metrics from model quotas
-    const metrics = [];
-    const interestingModels = ['gemini-3-pro-high', 'gemini-3-pro-low', 'claude-sonnet-4-6', 'claude-opus-4-6-thinking'];
-    
-    for (const modelId of interestingModels) {
-      const model = models[modelId];
-      if (model && model.quotaInfo) {
-        const remaining = model.quotaInfo.remainingFraction ?? 1;
-        metrics.push({
-          label: model.displayName || modelId,
-          used: Math.round((1 - remaining) * 100),
-          limit: 100,
-          format: 'percent',
-          resetTime: model.quotaInfo.resetTime,
-        });
-      }
-    }
-    
-    // If no interesting models found, show first few available
-    if (metrics.length === 0) {
-      for (const [modelId, model] of Object.entries(models).slice(0, 4)) {
-        if (model.quotaInfo) {
-          const remaining = model.quotaInfo.remainingFraction ?? 1;
-          metrics.push({
-            label: model.displayName || modelId,
-            used: Math.round((1 - remaining) * 100),
-            limit: 100,
-            format: 'percent',
-          });
-        }
-      }
-    }
-    
-    return { ...baseInfo, plan: activeAccount, metrics };
-  } catch (e) {
-    return { ...baseInfo, error: 'Network error: ' + e.message };
-  }
-}
-
-// Cache for AI usage data (avoid 429 rate limits)
-// In-memory cache
-const aiUsageCache = {
-  claude: { data: null, timestamp: 0 },
-  codex: { data: null, timestamp: 0 },
-  copilot: { data: null, timestamp: 0 },
-  cursor: { data: null, timestamp: 0 },
-  gemini: { data: null, timestamp: 0 },
-  factory: { data: null, timestamp: 0 },
-  kimi: { data: null, timestamp: 0 },
-  jetbrains: { data: null, timestamp: 0 },
-  minimax: { data: null, timestamp: 0 },
-  zai: { data: null, timestamp: 0 },
-  amp: { data: null, timestamp: 0 },
-  antigravity: { data: null, timestamp: 0 },
-};
-const AI_CACHE_TTL_MS = 300000; // 5 minutes cache
-
-// Persistent file cache (survives restarts)
-const AI_CACHE_FILE = path.join(CWD, 'data', 'ai-usage-cache.json');
-
-function loadPersistentCache() {
-  try {
-    if (fs.existsSync(AI_CACHE_FILE)) {
-      const data = JSON.parse(fs.readFileSync(AI_CACHE_FILE, 'utf8'));
-      for (const [provider, entry] of Object.entries(data)) {
-        if (aiUsageCache[provider] && entry.data) {
-          aiUsageCache[provider] = entry;
-        }
-      }
-      console.log('[AI Cache] Loaded persistent cache');
-    }
-  } catch (e) { /* ignore */ }
-}
-
-function savePersistentCache() {
-  try {
-    fs.mkdirSync(path.dirname(AI_CACHE_FILE), { recursive: true });
-    fs.writeFileSync(AI_CACHE_FILE, JSON.stringify(aiUsageCache, null, 2));
-  } catch (e) { /* ignore */ }
-}
-
-// Load cache on startup
-loadPersistentCache();
-
-// Cached fetch wrapper
-async function fetchWithCache(provider, fetchFn) {
-  const cache = aiUsageCache[provider];
-  const now = Date.now();
-  
-  // Return cached data if fresh
-  if (cache.data && (now - cache.timestamp) < AI_CACHE_TTL_MS) {
-    return { ...cache.data, cached: true };
-  }
-  
-  // Fetch fresh data
-  const result = await fetchFn();
-  
-  // Only cache successful results (not errors)
-  if (!result.error) {
-    cache.data = result;
-    cache.timestamp = now;
-    savePersistentCache(); // Persist to disk
-  } else if (result.error.includes('429') || result.error.includes('rate')) {
-    // On rate limit, return stale cache if available
-    if (cache.data) {
-      return { ...cache.data, cached: true, stale: true, rateLimited: true };
-    }
-  }
-  
-  return result;
-}
-
-// Get all AI usage data
-async function getAllAiUsage(options = {}) {
-  const results = await Promise.all([
-    fetchWithCache('claude', fetchClaudeUsage),
-    fetchWithCache('codex', fetchCodexUsage),
-    fetchWithCache('copilot', fetchCopilotUsage),
-    fetchWithCache('cursor', fetchCursorUsage),
-    fetchWithCache('gemini', fetchGeminiUsage),
-    fetchWithCache('amp', fetchAmpUsage),
-    fetchWithCache('factory', fetchFactoryUsage),
-    fetchWithCache('kimi', fetchKimiUsage),
-    fetchWithCache('jetbrains', fetchJetbrainsUsage),
-    fetchWithCache('minimax', fetchMinimaxUsage),
-    fetchWithCache('zai', fetchZaiUsage),
-    fetchWithCache('antigravity', fetchAntigravityUsage),
-  ]);
-  
-  return {
-    providers: results,
-    timestamp: new Date().toISOString(),
-  };
-}
-
-// GET /api/latest-image?dir=<path> - newest image from a directory
-function latestImageHandler(parsedUrl, res) {
-  const dir = parsedUrl.searchParams.get('dir');
-  if (!dir) return sendResponse(res, 200, 'application/json', JSON.stringify({ status: 'error', message: 'Missing dir parameter' }));
-  const resolved = path.resolve(dir.replace(/^~/, os.homedir()));
-  const home = os.homedir();
-  if (!resolved.startsWith(home + path.sep) && resolved !== home) {
-    return sendResponse(res, 200, 'application/json', JSON.stringify({ status: 'error', message: 'Directory must be under home' }));
-  }
-  try {
-    const imageExts = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.svg'];
-    const files = fs.readdirSync(resolved)
-      .filter(f => imageExts.includes(path.extname(f).toLowerCase()))
-      .map(f => ({ name: f, mtime: fs.statSync(path.join(resolved, f)).mtimeMs }))
-      .sort((a, b) => b.mtime - a.mtime);
-    if (files.length === 0) return sendResponse(res, 200, 'application/json', JSON.stringify({ status: 'ok', image: null, message: 'No images found' }));
-    const latest = files[0];
-    const ext = path.extname(latest.name).toLowerCase().replace('.', '');
-    const mime = ext === 'svg' ? 'image/svg+xml' : ext === 'jpg' ? 'image/jpeg' : `image/${ext}`;
-    const data = fs.readFileSync(path.join(resolved, latest.name));
-    const b64 = data.toString('base64');
-    return sendResponse(res, 200, 'application/json', JSON.stringify({ status: 'ok', image: { name: latest.name, mtime: latest.mtime, dataUrl: `data:${mime};base64,${b64}` }, total: files.length }));
-  } catch (error) { 
-    return sendResponse(res, 200, 'application/json', JSON.stringify({ status: 'error', message: error.message })); 
-  }
-}
-
 const server = http.createServer(async (req, res) => {
   const parsedUrl = new URL(req.url, `http://${req.headers.host}`);
   const pathname = parsedUrl.pathname;
-
-  // ── Auth: serve login page (always accessible) ──
-  if (req.method === 'GET' && pathname === '/login') {
-    const loginPath = path.join(__dirname, 'login.html');
-    fs.readFile(loginPath, (err, data) => {
-      if (err) { sendResponse(res, 404, 'text/plain', 'Login page not found'); return; }
-      sendResponse(res, 200, 'text/html', data);
-    });
-    return;
-  }
-
-  // ── Auth: login action ──
-  if (req.method === 'POST' && pathname === '/api/auth/login') {
-    if (!DASHBOARD_PASSWORD) {
-      sendJson(res, 200, { status: 'ok', redirect: '/' });
-      return;
-    }
-    const ip = req.socket.remoteAddress || 'unknown';
-    if (isRateLimited(ip)) {
-      sendJson(res, 429, { error: 'Too many failed attempts. Try again in 15 minutes.' });
-      return;
-    }
-    let body = '';
-    req.on('data', c => { body += c; if (body.length > 4096) req.destroy(); });
-    req.on('end', () => {
-      try {
-        const { password } = JSON.parse(body);
-        if (checkPassword(password)) {
-          const token = createSession();
-          const cookieOpts = `Path=/; HttpOnly; SameSite=Strict; Max-Age=${SESSION_TTL_MS / 1000}`;
-          res.writeHead(200, {
-            'Content-Type': 'application/json',
-            'Set-Cookie': `lb_session=${token}; ${cookieOpts}`
-          });
-          res.end(JSON.stringify({ status: 'ok', redirect: '/' }));
-        } else {
-          recordFailedAttempt(ip);
-          sendJson(res, 401, { error: 'Invalid password' });
-        }
-      } catch (e) {
-        sendJson(res, 400, { error: 'Invalid request' });
-      }
-    });
-    return;
-  }
-
-  // ── Auth: logout ──
-  if (req.method === 'POST' && pathname === '/api/auth/logout') {
-    const token = getSessionCookie(req);
-    if (token) sessions.delete(token);
-    res.writeHead(302, {
-      'Set-Cookie': 'lb_session=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0',
-      'Location': '/login'
-    });
-    res.end();
-    return;
-  }
-
-  // ── Auth: enforce session for all other routes ──
-  if (DASHBOARD_PASSWORD) {
-    const token = getSessionCookie(req);
-    if (!isValidSession(token)) {
-      if (pathname.startsWith('/api/')) {
-        sendJson(res, 401, { status: 'error', message: 'Not authenticated' });
-      } else {
-        res.writeHead(302, { 'Location': '/login' });
-        res.end();
-      }
-      return;
-    }
-  }
 
   // CORS preflight for /config
   if (req.method === 'OPTIONS' && pathname === '/config') {
@@ -1986,276 +382,6 @@ const server = http.createServer(async (req, res) => {
       'Access-Control-Allow-Headers': 'Content-Type'
     });
     res.end();
-    return;
-  }
-
-  // ─────────────────────────────────────────────
-  // Server Profiles API (for remote LobsterBoard Agent connections)
-  // ─────────────────────────────────────────────
-  const SERVERS_FILE = path.join(CWD, 'data', 'servers.json');
-  
-  function loadServers() {
-    try {
-      if (fs.existsSync(SERVERS_FILE)) {
-        return JSON.parse(fs.readFileSync(SERVERS_FILE, 'utf8'));
-      }
-    } catch (e) { /* ignore */ }
-    return [{ id: 'local', name: 'Local', type: 'local' }];
-  }
-  
-  function saveServers(servers) {
-    fs.mkdirSync(path.dirname(SERVERS_FILE), { recursive: true });
-    fs.writeFileSync(SERVERS_FILE, JSON.stringify(servers, null, 2));
-  }
-
-  // GET /api/servers - List all servers
-  if (req.method === 'GET' && pathname === '/api/servers') {
-    const servers = loadServers();
-    // Mask API keys and secrets for security
-    const masked = servers.map(s => ({
-      ...s,
-      apiKey: s.apiKey ? s.apiKey.slice(0, 10) + '...' : undefined,
-      sharedSecret: s.sharedSecret ? '🔐' : undefined, // Just indicate presence
-    }));
-    sendJson(res, 200, { servers: masked });
-    return;
-  }
-
-  // POST /api/servers - Add a server
-  if (req.method === 'POST' && pathname === '/api/servers') {
-    let body = '';
-    req.on('data', c => body += c);
-    req.on('end', async () => {
-      try {
-        const { name, url, apiKey } = JSON.parse(body);
-        if (!name || !url || !apiKey) {
-          return sendJson(res, 400, { error: 'name, url, and apiKey required' });
-        }
-        const servers = loadServers();
-        const id = name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
-        if (servers.find(s => s.id === id)) {
-          return sendJson(res, 400, { error: 'Server with this name already exists' });
-        }
-        
-        // Generate ECDH key pair for encrypted communication
-        const keyPair = generateEcdhKeyPair();
-        
-        // Perform handshake with agent
-        let sharedSecret = null;
-        let encrypted = false;
-        try {
-          const handshakeRes = await fetch(url + '/handshake', {
-            method: 'POST',
-            headers: { 
-              'X-API-Key': apiKey,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ 
-              clientId: id, 
-              publicKey: keyPair.publicKey,
-            }),
-            signal: AbortSignal.timeout(10000),
-          });
-          
-          if (handshakeRes.ok) {
-            const handshakeData = await handshakeRes.json();
-            if (handshakeData.publicKey) {
-              sharedSecret = deriveSharedSecret(keyPair.privateKey, handshakeData.publicKey);
-              encrypted = true;
-              console.log(`🔐 Encrypted connection established with server: ${name}`);
-            }
-          }
-        } catch (e) {
-          // Handshake failed - agent may not support encryption, continue without it
-          console.log(`⚠️ Handshake failed for ${name}, using unencrypted: ${e.message}`);
-        }
-        
-        const serverEntry = { 
-          id, 
-          name, 
-          url, 
-          apiKey, 
-          type: 'remote',
-          encrypted,
-        };
-        
-        // Store shared secret (base64 encoded) if encryption is enabled
-        if (sharedSecret) {
-          serverEntry.sharedSecret = sharedSecret.toString('base64');
-          serverEntry.clientId = id;
-        }
-        
-        servers.push(serverEntry);
-        saveServers(servers);
-        sendJson(res, 200, { status: 'success', id, encrypted });
-      } catch (e) {
-        sendJson(res, 400, { error: e.message });
-      }
-    });
-    return;
-  }
-
-  // PUT /api/servers/:id - Update a server
-  if (req.method === 'PUT' && pathname.startsWith('/api/servers/')) {
-    const id = pathname.split('/')[3];
-    let body = '';
-    req.on('data', c => body += c);
-    req.on('end', () => {
-      try {
-        const updates = JSON.parse(body);
-        const servers = loadServers();
-        const idx = servers.findIndex(s => s.id === id);
-        if (idx === -1) return sendJson(res, 404, { error: 'Server not found' });
-        if (id === 'local') return sendJson(res, 400, { error: 'Cannot modify local server' });
-        servers[idx] = { ...servers[idx], ...updates, id }; // Don't allow id change
-        saveServers(servers);
-        sendJson(res, 200, { status: 'success' });
-      } catch (e) {
-        sendJson(res, 400, { error: e.message });
-      }
-    });
-    return;
-  }
-
-  // DELETE /api/servers/:id - Delete a server
-  if (req.method === 'DELETE' && pathname.startsWith('/api/servers/')) {
-    const id = pathname.split('/')[3];
-    if (id === 'local') return sendJson(res, 400, { error: 'Cannot delete local server' });
-    const servers = loadServers();
-    const filtered = servers.filter(s => s.id !== id);
-    if (filtered.length === servers.length) {
-      return sendJson(res, 404, { error: 'Server not found' });
-    }
-    saveServers(filtered);
-    sendJson(res, 200, { status: 'success' });
-    return;
-  }
-
-  // POST /api/servers/:id/test - Test connection to a server
-  if (req.method === 'POST' && pathname.match(/^\/api\/servers\/[^/]+\/test$/)) {
-    const id = pathname.split('/')[3];
-    const servers = loadServers();
-    const server = servers.find(s => s.id === id);
-    if (!server) return sendJson(res, 404, { error: 'Server not found' });
-    if (server.type === 'local') {
-      return sendJson(res, 200, { status: 'ok', message: 'Local server' });
-    }
-    // Test remote connection
-    fetch(server.url + '/health', {
-      headers: { 'X-API-Key': server.apiKey },
-      signal: AbortSignal.timeout(5000),
-    })
-      .then(r => r.json())
-      .then(data => sendJson(res, 200, { 
-        status: 'ok', 
-        serverName: data.serverName,
-        agentEncryption: data.encrypted || false,
-        localEncryption: server.encrypted || false,
-      }))
-      .catch(e => sendJson(res, 200, { status: 'error', message: e.message }));
-    return;
-  }
-
-  // POST /api/servers/:id/handshake - Re-establish encryption with a server
-  if (req.method === 'POST' && pathname.match(/^\/api\/servers\/[^/]+\/handshake$/)) {
-    const id = pathname.split('/')[3];
-    const servers = loadServers();
-    const serverIdx = servers.findIndex(s => s.id === id);
-    if (serverIdx === -1) return sendJson(res, 404, { error: 'Server not found' });
-    const server = servers[serverIdx];
-    if (server.type === 'local') {
-      return sendJson(res, 400, { error: 'Local server does not need handshake' });
-    }
-
-    (async () => {
-      try {
-        // Generate new key pair
-        const keyPair = generateEcdhKeyPair();
-        
-        const handshakeRes = await fetch(server.url + '/handshake', {
-          method: 'POST',
-          headers: { 
-            'X-API-Key': server.apiKey,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ 
-            clientId: id, 
-            publicKey: keyPair.publicKey,
-          }),
-          signal: AbortSignal.timeout(10000),
-        });
-        
-        if (!handshakeRes.ok) {
-          const err = await handshakeRes.json().catch(() => ({ error: 'HTTP ' + handshakeRes.status }));
-          return sendJson(res, 500, { error: err.error || 'Handshake failed' });
-        }
-        
-        const handshakeData = await handshakeRes.json();
-        if (!handshakeData.publicKey) {
-          return sendJson(res, 500, { error: 'Agent did not return public key' });
-        }
-        
-        const sharedSecret = deriveSharedSecret(keyPair.privateKey, handshakeData.publicKey);
-        
-        // Update server config
-        servers[serverIdx].encrypted = true;
-        servers[serverIdx].sharedSecret = sharedSecret.toString('base64');
-        servers[serverIdx].clientId = id;
-        saveServers(servers);
-        
-        console.log(`🔐 Re-established encrypted connection with server: ${server.name}`);
-        sendJson(res, 200, { status: 'ok', encrypted: true });
-      } catch (e) {
-        sendJson(res, 500, { error: e.message });
-      }
-    })();
-    return;
-  }
-
-  // GET /api/servers/:id/stats - Fetch stats from a remote server
-  if (req.method === 'GET' && pathname.match(/^\/api\/servers\/[^/]+\/stats$/)) {
-    const id = pathname.split('/')[3];
-    const servers = loadServers();
-    const server = servers.find(s => s.id === id);
-    if (!server) return sendJson(res, 404, { error: 'Server not found' });
-    if (server.type === 'local') {
-      return sendJson(res, 400, { error: 'Use /api/stats/stream for local' });
-    }
-    
-    // Build headers - include client ID if we have encryption set up
-    const headers = { 'X-API-Key': server.apiKey };
-    if (server.encrypted && server.clientId) {
-      headers['X-Client-ID'] = server.clientId;
-    }
-    
-    // Fetch from remote agent
-    fetch(server.url + '/stats', {
-      headers,
-      signal: AbortSignal.timeout(10000),
-    })
-      .then(r => {
-        if (!r.ok) throw new Error('HTTP ' + r.status);
-        return r.json();
-      })
-      .then(data => {
-        // Decrypt if response is encrypted
-        if (data.encrypted && server.sharedSecret) {
-          try {
-            const keyBuffer = Buffer.from(server.sharedSecret, 'base64');
-            const decrypted = decryptPayload(data.encrypted, keyBuffer);
-            decrypted._remote = true;
-            decrypted._encrypted = true;
-            return sendJson(res, 200, decrypted);
-          } catch (e) {
-            console.error('Decryption failed:', e.message);
-            return sendJson(res, 500, { error: 'Decryption failed: ' + e.message });
-          }
-        }
-        // Plain response (backward compatible)
-        data._remote = true;
-        sendJson(res, 200, data);
-      })
-      .catch(e => sendJson(res, 500, { error: e.message }));
     return;
   }
 
@@ -2273,7 +399,7 @@ const server = http.createServer(async (req, res) => {
       }
       try {
         const config = JSON.parse(data);
-        sendJson(res, 200, maskConfig(config));
+        sendJson(res, 200, config);
       } catch (parseErr) {
         sendError(res, `Failed to parse config file: ${parseErr.message}`);
       }
@@ -2293,8 +419,7 @@ const server = http.createServer(async (req, res) => {
     req.on('end', () => {
       if (overflow) { sendError(res, 'Request body too large', 413); return; }
       try {
-        let config = JSON.parse(body);
-        config = extractSecrets(config);
+        const config = JSON.parse(body);
         fs.writeFile(CONFIG_FILE, JSON.stringify(config, null, 2), 'utf8', (err) => {
           if (err) {
             sendError(res, `Failed to write config file: ${err.message}`);
@@ -2320,140 +445,6 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // ── Security: PIN auth endpoints ──
-  if (req.method === 'GET' && pathname === '/api/auth/status') {
-    const auth = getAuth();
-    sendJson(res, 200, { hasPin: !!auth.pinHash, publicMode: !!auth.publicMode });
-    return;
-  }
-
-  if (req.method === 'POST' && pathname === '/api/auth/set-pin') {
-    let body = '';
-    req.on('data', c => body += c);
-    req.on('end', () => {
-      try {
-        const { pin, currentPin } = JSON.parse(body);
-        if (!pin || pin.length < 4 || pin.length > 6 || !/^\d+$/.test(pin)) {
-          sendJson(res, 400, { error: 'PIN must be 4-6 digits' }); return;
-        }
-        const auth = getAuth();
-        // If PIN already set, require current PIN
-        if (auth.pinHash && (!currentPin || hashPin(currentPin) !== auth.pinHash)) {
-          sendJson(res, 403, { error: 'Current PIN is incorrect' }); return;
-        }
-        auth.pinHash = hashPin(pin);
-        writeJsonFile(AUTH_FILE, auth);
-        sendJson(res, 200, { status: 'ok' });
-      } catch (e) { sendError(res, e.message, 400); }
-    });
-    return;
-  }
-
-  if (req.method === 'POST' && pathname === '/api/auth/verify-pin') {
-    let body = '';
-    req.on('data', c => body += c);
-    req.on('end', () => {
-      try {
-        const { pin } = JSON.parse(body);
-        const auth = getAuth();
-        if (!auth.pinHash) { sendJson(res, 200, { valid: true }); return; }
-        const valid = hashPin(pin) === auth.pinHash;
-        sendJson(res, 200, { valid });
-      } catch (e) { sendError(res, e.message, 400); }
-    });
-    return;
-  }
-
-  if (req.method === 'POST' && pathname === '/api/auth/remove-pin') {
-    let body = '';
-    req.on('data', c => body += c);
-    req.on('end', () => {
-      try {
-        const { pin } = JSON.parse(body);
-        const auth = getAuth();
-        if (auth.pinHash && hashPin(pin) !== auth.pinHash) {
-          sendJson(res, 403, { error: 'PIN is incorrect' }); return;
-        }
-        delete auth.pinHash;
-        writeJsonFile(AUTH_FILE, auth);
-        sendJson(res, 200, { status: 'ok' });
-      } catch (e) { sendError(res, e.message, 400); }
-    });
-    return;
-  }
-
-  // ── Security: Public mode ──
-  if (req.method === 'GET' && pathname === '/api/mode') {
-    const auth = getAuth();
-    sendJson(res, 200, { publicMode: !!auth.publicMode });
-    return;
-  }
-
-  if (req.method === 'POST' && pathname === '/api/mode') {
-    let body = '';
-    req.on('data', c => body += c);
-    req.on('end', () => {
-      try {
-        const { publicMode, pin } = JSON.parse(body);
-        const auth = getAuth();
-        // Require PIN to toggle mode if PIN is set
-        if (auth.pinHash && (!pin || hashPin(pin) !== auth.pinHash)) {
-          sendJson(res, 403, { error: 'PIN required' }); return;
-        }
-        auth.publicMode = !!publicMode;
-        writeJsonFile(AUTH_FILE, auth);
-        sendJson(res, 200, { status: 'ok', publicMode: auth.publicMode });
-      } catch (e) { sendError(res, e.message, 400); }
-    });
-    return;
-  }
-
-  // ── Security: Secrets management ──
-  if (req.method === 'POST' && pathname.match(/^\/api\/secrets\/[^/]+$/)) {
-    if (isPublicMode()) { sendJson(res, 403, { error: 'Forbidden in public mode' }); return; }
-    const widgetId = pathname.split('/')[3];
-    let body = '';
-    req.on('data', c => body += c);
-    req.on('end', () => {
-      try {
-        const updates = JSON.parse(body);
-        const secrets = getSecrets();
-        if (!secrets[widgetId]) secrets[widgetId] = {};
-        Object.assign(secrets[widgetId], updates);
-        writeJsonFile(SECRETS_FILE, secrets);
-        sendJson(res, 200, { status: 'ok' });
-      } catch (e) { sendError(res, e.message, 400); }
-    });
-    return;
-  }
-
-  if (req.method === 'DELETE' && pathname.match(/^\/api\/secrets\/[^/]+\/[^/]+$/)) {
-    if (isPublicMode()) { sendJson(res, 403, { error: 'Forbidden in public mode' }); return; }
-    const parts = pathname.split('/');
-    const widgetId = parts[3];
-    const key = parts[4];
-    const secrets = getSecrets();
-    if (secrets[widgetId]) {
-      delete secrets[widgetId][key];
-      if (Object.keys(secrets[widgetId]).length === 0) delete secrets[widgetId];
-      writeJsonFile(SECRETS_FILE, secrets);
-    }
-    sendJson(res, 200, { status: 'ok' });
-    return;
-  }
-
-  // ── Public mode guard: block edit-related APIs ──
-  if (isPublicMode()) {
-    const editPaths = ['/config'];
-    const isEditApi = (req.method === 'POST' && editPaths.includes(pathname)) ||
-                      (req.method === 'POST' && pathname.startsWith('/api/templates/')) ||
-                      (req.method === 'DELETE' && pathname.startsWith('/api/templates/'));
-    if (isEditApi) {
-      sendJson(res, 403, { error: 'Dashboard is in public mode. Editing is disabled.' });
-      return;
-    }
-  }
-
   // ── Pages system routing ──
   const pageMatch = matchPageRoute(loadedPages, req.method, pathname, parsedUrl);
   if (pageMatch) {
@@ -2461,16 +452,9 @@ const server = http.createServer(async (req, res) => {
       sendJson(res, 200, loadedPages.filter(p => p.nav !== false).map(p => ({ id: p.id, title: p.title, icon: p.icon, description: p.description, order: p.order })));
       return;
     }
-    if (pageMatch.type === 'redirect') {
-      res.writeHead(302, { Location: pageMatch.location });
-      res.end();
-      return;
-    }
     if (pageMatch.type === 'static') {
       const resolved = path.resolve(pageMatch.filePath);
-      // Security: ensure path is within one of the allowed page directories
-      const isAllowed = PAGES_DIRS.some(dir => resolved.startsWith(path.resolve(dir)));
-      if (!isAllowed) {
+      if (!resolved.startsWith(path.resolve(PAGES_DIR))) {
         sendResponse(res, 403, 'text/plain', 'Forbidden');
         return;
       }
@@ -2511,7 +495,7 @@ const server = http.createServer(async (req, res) => {
 
   // GET/POST /api/todos - Read/write todo list
   if (pathname === '/api/todos') {
-    const todosFile = path.join(CWD, 'todos.json');
+    const todosFile = path.join(__dirname, 'todos.json');
     if (req.method === 'GET') {
       fs.readFile(todosFile, 'utf8', (err, data) => {
         if (err) {
@@ -2547,7 +531,7 @@ const server = http.createServer(async (req, res) => {
 
   // GET/POST /api/notes - Read/write notes content
   if (pathname === '/api/notes') {
-    const notesFile = path.join(CWD, 'notes.json');
+    const notesFile = path.join(__dirname, 'notes.json');
     if (req.method === 'GET') {
       fs.readFile(notesFile, 'utf8', (err, data) => {
         if (err) {
@@ -2579,70 +563,6 @@ const server = http.createServer(async (req, res) => {
       });
       return;
     }
-  }
-
-  // GET /api/ai-usage - Fetch usage from all configured AI providers
-  if (req.method === 'GET' && pathname === '/api/ai-usage') {
-    try {
-      const data = await getAllAiUsage();
-      sendJson(res, 200, { status: 'ok', ...data });
-    } catch (e) {
-      sendError(res, e.message);
-    }
-    return;
-  }
-
-  // GET /api/ai-usage/:provider - Fetch usage from a specific provider
-  const aiUsageMatch = pathname.match(/^\/api\/ai-usage\/(\w+)$/);
-  if (req.method === 'GET' && aiUsageMatch) {
-    const provider = aiUsageMatch[1];
-    try {
-      let data;
-      switch (provider) {
-        case 'claude':
-          data = await fetchWithCache('claude', fetchClaudeUsage);
-          break;
-        case 'codex':
-          data = await fetchWithCache('codex', fetchCodexUsage);
-          break;
-        case 'copilot':
-          data = await fetchWithCache('copilot', fetchCopilotUsage);
-          break;
-        case 'cursor':
-          data = await fetchWithCache('cursor', fetchCursorUsage);
-          break;
-        case 'gemini':
-          data = await fetchWithCache('gemini', fetchGeminiUsage);
-          break;
-        case 'amp':
-          data = await fetchWithCache('amp', fetchAmpUsage);
-          break;
-        case 'factory':
-          data = await fetchWithCache('factory', fetchFactoryUsage);
-          break;
-        case 'kimi':
-          data = await fetchWithCache('kimi', fetchKimiUsage);
-          break;
-        case 'jetbrains':
-          data = await fetchWithCache('jetbrains', fetchJetbrainsUsage);
-          break;
-        case 'minimax':
-          data = await fetchWithCache('minimax', fetchMinimaxUsage);
-          break;
-        case 'zai':
-          data = await fetchWithCache('zai', fetchZaiUsage);
-          break;
-        case 'antigravity':
-          data = await fetchWithCache('antigravity', fetchAntigravityUsage);
-          break;
-        default:
-          return sendJson(res, 404, { status: 'error', message: `Unknown provider: ${provider}` });
-      }
-      sendJson(res, 200, { status: 'ok', ...data });
-    } catch (e) {
-      sendError(res, e.message);
-    }
-    return;
   }
 
   // GET /api/cron - Read cron jobs from OpenClaw cron store
@@ -2753,11 +673,15 @@ const server = http.createServer(async (req, res) => {
       try {
         let currentVersion = 'unknown';
         try {
-          // Run openclaw --version to get the actual running version
+          // Prefer `openclaw --version` for accurate installed version (survives npm link, global updates, etc.)
           const { execSync } = require('child_process');
-          currentVersion = execSync('openclaw --version 2>/dev/null', { encoding: 'utf8', timeout: 5000 }).trim();
-        } catch (_) {
-          // Fallback: try reading from package.json
+          const cliOutput = execSync('openclaw --version 2>/dev/null', { encoding: 'utf8', timeout: 5000 }).trim();
+          // Output format: "OpenClaw 2026.3.23-2 (hash)" — extract version
+          const vMatch = cliOutput.match(/(\d{4}\.\d+\.\d+(?:-\d+)?)/);
+          if (vMatch) currentVersion = vMatch[1];
+        } catch (_) {}
+        // Fallback: read from package.json if CLI unavailable
+        if (currentVersion === 'unknown') {
           try {
             const nodeDir = path.dirname(path.dirname(process.execPath));
             const candidates = [
@@ -2934,15 +858,9 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // GET /api/rss?url=<feedUrl>&widgetId=<id>&secretKey=<key> - Server-side RSS proxy
+  // GET /api/rss?url=<feedUrl> - Server-side RSS proxy
   if (req.method === 'GET' && pathname === '/api/rss') {
-    let feedUrl = parsedUrl.searchParams.get('url');
-    const rssWidgetId = parsedUrl.searchParams.get('widgetId');
-    const rssSecretKey = parsedUrl.searchParams.get('secretKey') || 'feedUrl';
-    if ((!feedUrl || feedUrl === '••••••••' || feedUrl === '__SECRET__') && rssWidgetId) {
-      const secrets = getSecrets();
-      feedUrl = secrets[rssWidgetId]?.[rssSecretKey] || null;
-    }
+    const feedUrl = parsedUrl.searchParams.get('url');
     if (!feedUrl) { sendError(res, 'Missing url parameter', 400); return; }
 
     // Validate URL: only http/https, block private/internal IPs (SSRF protection)
@@ -2995,17 +913,46 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // GET /api/calendar?url=<icalUrl>&max=<maxEvents>&widgetId=<id>&secretKey=<key> - iCal feed proxy + parser
-  if (req.method === 'GET' && pathname === '/api/calendar') {
-    let icalUrl = parsedUrl.searchParams.get('url');
-    const maxEvents = Math.min(parseInt(parsedUrl.searchParams.get('max')) || 10, 50);
-    const widgetId = parsedUrl.searchParams.get('widgetId');
-    const secretKey = parsedUrl.searchParams.get('secretKey') || 'icalUrl';
-    // If url is masked/placeholder, resolve from secrets
-    if ((!icalUrl || icalUrl === '••••••••' || icalUrl === '__SECRET__') && widgetId) {
-      const secrets = getSecrets();
-      icalUrl = secrets[widgetId]?.[secretKey] || null;
+  // GET /api/stocks?symbols=AAPL,MSFT,GOOGL - Yahoo Finance quote proxy
+  if (req.method === 'GET' && pathname === '/api/stocks') {
+    const symbols = parsedUrl.searchParams.get('symbols') || 'AAPL';
+    // 2-minute cache
+    if (!global._stockCache) global._stockCache = {};
+    const cached = global._stockCache[symbols];
+    if (cached && Date.now() - cached.ts < 120000) {
+      sendJson(res, 200, cached.data);
+      return;
     }
+    try {
+      const url = `https://query1.finance.yahoo.com/v8/finance/spark?symbols=${encodeURIComponent(symbols)}&range=1d&interval=1d`;
+      const https = require('https');
+      const body = await new Promise((resolve, reject) => {
+        https.get(url, { headers: { 'User-Agent': 'Mozilla/5.0' } }, (resp) => {
+          let d = '';
+          resp.on('data', c => d += c);
+          resp.on('end', () => resolve(d));
+        }).on('error', reject);
+      });
+      const data = JSON.parse(body);
+      const quotes = Object.entries(data).map(([sym, v]) => {
+        const close = v.close && v.close.length ? v.close[v.close.length - 1] : null;
+        const prev = v.chartPreviousClose || null;
+        const pct = close && prev ? ((close - prev) / prev * 100) : null;
+        return { symbol: sym, price: close, changePercent: pct };
+      });
+      global._stockCache[symbols] = { ts: Date.now(), data: quotes };
+      sendJson(res, 200, quotes);
+    } catch (e) {
+      console.error('Stock proxy error:', e.message);
+      sendError(res, 'Failed to fetch stock data', 502);
+    }
+    return;
+  }
+
+  // GET /api/calendar?url=<icalUrl>&max=<maxEvents> - iCal feed proxy + parser
+  if (req.method === 'GET' && pathname === '/api/calendar') {
+    const icalUrl = parsedUrl.searchParams.get('url');
+    const maxEvents = Math.min(parseInt(parsedUrl.searchParams.get('max')) || 10, 50);
     if (!icalUrl) { sendError(res, 'Missing url parameter', 400); return; }
 
     // Validate URL: only http/https, block private/internal IPs
@@ -3080,13 +1027,7 @@ const server = http.createServer(async (req, res) => {
       try {
         const cfg = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8'));
         const w = (cfg.widgets || []).find(w => w.type === 'ai-usage-claude');
-        if (w && w.properties && w.properties.apiKey && w.properties.apiKey !== '__SECRET__') {
-          apiKey = w.properties.apiKey;
-        } else if (w) {
-          // Check secrets store
-          const secrets = getSecrets();
-          apiKey = secrets[w.id]?.apiKey || null;
-        }
+        if (w && w.properties && w.properties.apiKey) apiKey = w.properties.apiKey;
       } catch(e) {}
     }
     if (!apiKey) { sendJson(res, 200, { error: 'No API key configured. Add your Anthropic Admin key in the widget properties.', tokens: 0, cost: 0, models: [] }); return; }
@@ -3156,12 +1097,7 @@ const server = http.createServer(async (req, res) => {
       try {
         const cfg = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8'));
         const w = (cfg.widgets || []).find(w => w.type === 'ai-usage-openai');
-        if (w && w.properties && w.properties.apiKey && w.properties.apiKey !== '__SECRET__') {
-          apiKey = w.properties.apiKey;
-        } else if (w) {
-          const secrets = getSecrets();
-          apiKey = secrets[w.id]?.apiKey || null;
-        }
+        if (w && w.properties && w.properties.apiKey) apiKey = w.properties.apiKey;
       } catch(e) {}
     }
     if (!apiKey) { sendJson(res, 200, { error: 'No API key configured. Add your OpenAI key in the widget properties.', tokens: 0, cost: 0, models: [] }); return; }
@@ -3296,25 +1232,12 @@ const server = http.createServer(async (req, res) => {
     req.on('end', () => {
       try {
         const { id, mode } = JSON.parse(body);
-        if (!id) { sendJson(res, 400, { error: 'Missing template id' }); return; }
-        if (!mode) { sendJson(res, 400, { error: 'Missing import mode' }); return; }
-        
         const tplConfigPath = path.join(TEMPLATES_DIR, id, 'config.json');
-        if (!fs.existsSync(tplConfigPath)) { sendJson(res, 404, { error: `Template "${id}" not found` }); return; }
-        
-        let tplConfig;
-        try {
-          tplConfig = JSON.parse(fs.readFileSync(tplConfigPath, 'utf8'));
-        } catch (parseErr) {
-          sendJson(res, 500, { error: `Template config is invalid JSON: ${parseErr.message}` }); return;
-        }
+        if (!fs.existsSync(tplConfigPath)) { sendJson(res, 404, { error: 'Template not found' }); return; }
+        const tplConfig = JSON.parse(fs.readFileSync(tplConfigPath, 'utf8'));
 
         if (mode === 'replace') {
-          try {
-            fs.writeFileSync(CONFIG_FILE, JSON.stringify(tplConfig, null, 2));
-          } catch (writeErr) {
-            sendJson(res, 500, { error: `Failed to write config: ${writeErr.message}` }); return;
-          }
+          fs.writeFileSync(CONFIG_FILE, JSON.stringify(tplConfig, null, 2));
           sendJson(res, 200, { status: 'success', message: 'Template imported (replace)' });
         } else if (mode === 'merge') {
           let currentConfig = { canvas: { width: 1920, height: 1080 }, widgets: [] };
@@ -3332,21 +1255,39 @@ const server = http.createServer(async (req, res) => {
             y: (w.y || 0) + offset
           }));
           currentConfig.widgets = [...(currentConfig.widgets || []), ...newWidgets];
-          try {
-            fs.writeFileSync(CONFIG_FILE, JSON.stringify(currentConfig, null, 2));
-          } catch (writeErr) {
-            sendJson(res, 500, { error: `Failed to write config: ${writeErr.message}` }); return;
-          }
+          fs.writeFileSync(CONFIG_FILE, JSON.stringify(currentConfig, null, 2));
           sendJson(res, 200, { status: 'success', message: `Merged ${newWidgets.length} widgets` });
         } else {
           sendJson(res, 400, { error: 'Invalid mode. Use "replace" or "merge"' });
         }
-      } catch (e) { sendJson(res, 500, { error: `Import error: ${e.message}` }); }
+      } catch (e) { sendError(res, e.message); }
     });
     return;
   }
 
   // POST /api/templates/export — export current config as template
+  // GET /api/sessions - OpenClaw session count from session files
+  if (req.method === 'GET' && pathname === '/api/sessions') {
+    try {
+      const sessDir = path.join(os.homedir(), '.openclaw/agents/main/sessions');
+      const files = fs.readdirSync(sessDir).filter(f => f.endsWith('.jsonl'));
+      const now = Date.now();
+      const oneHourAgo = now - 3600000;
+      let active = 0;
+      for (const file of files) {
+        try {
+          const stat = fs.statSync(path.join(sessDir, file));
+          if (stat.mtimeMs > oneHourAgo) active++;
+        } catch (e) { /* skip */ }
+      }
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      return sendResponse(res, 200, 'application/json', JSON.stringify({ active, total: files.length }));
+    } catch (e) {
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      return sendResponse(res, 200, 'application/json', JSON.stringify({ active: 0, total: 0 }));
+    }
+  }
+
   // GET /api/quote - proxy for zenquotes.io (CORS blocked in browser)
   if (req.method === 'GET' && pathname === '/api/quote') {
     const https = require('https');
@@ -3382,10 +1323,8 @@ const server = http.createServer(async (req, res) => {
         .sort((a, b) => a.localeCompare(b));
       const imageExts = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.svg'];
       const imageCount = fs.readdirSync(resolved).filter(f => imageExts.includes(path.extname(f).toLowerCase())).length;
-      return sendResponse(res, 200, 'application/json', JSON.stringify({ status: 'ok', path: resolved, dirs: entries, imageCount }));
-    } catch (error) { 
-      return sendResponse(res, 200, 'application/json', JSON.stringify({ status: 'error', message: error.message })); 
-    }
+      sendResponse(res, 200, 'application/json', JSON.stringify({ status: 'ok', path: resolved, dirs: entries, imageCount }));
+    } catch (error) { sendResponse(res, 200, 'application/json', JSON.stringify({ status: 'error', message: error.message })); }
   }
 
   if (req.method === 'POST' && pathname === '/api/templates/export') {
@@ -3405,9 +1344,7 @@ const server = http.createServer(async (req, res) => {
 
         const sensitiveKeys = ['apiKey', 'api_key', 'token', 'secret', 'password'];
         const privateIpRegex = /^https?:\/\/(10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+|localhost|127\.0\.0\.1)/i;
-        // URLs that may contain private auth tokens — strip them in templates
-        const privateUrlKeys = ['icalUrl'];
-        const privateUrlPatterns = [/[?&/]private[-_]?[a-f0-9]/i, /caldav\.icloud\.com/i, /\/private\//i];
+        const keepUrlKeys = ['icalUrl', 'feedUrl'];
 
         function stripSensitive(props) {
           if (!props || typeof props !== 'object') return props;
@@ -3420,16 +1357,7 @@ const server = http.createServer(async (req, res) => {
             } else if ((key === 'url' || key === 'endpoint') && typeof result[key] === 'string' && privateIpRegex.test(result[key])) {
               result[key] = 'http://your-server:port/path';
               stripped = true;
-            } else if (privateUrlKeys.includes(key) && typeof result[key] === 'string') {
-              // Always strip private calendar/feed URLs — they contain auth tokens
-              if (result[key] && (result[key].length > 0)) {
-                const hasPrivateToken = privateUrlPatterns.some(p => p.test(result[key]));
-                if (hasPrivateToken) {
-                  result[key] = '';
-                  stripped = true;
-                }
-              }
-            } else if (typeof result[key] === 'object' && result[key] !== null) {
+            } else if (!keepUrlKeys.includes(key) && typeof result[key] === 'object' && result[key] !== null) {
               const inner = stripSensitive(result[key]);
               result[key] = inner.result;
               if (inner.stripped) stripped = true;
@@ -3509,19 +1437,6 @@ const server = http.createServer(async (req, res) => {
   }
 
   // Serve static files
-  // Check working directory's public/ folder first (for user assets like recap images)
-  const publicPath = path.join(CWD, 'public', pathname);
-  const publicResolved = path.resolve(publicPath);
-  if (publicResolved.startsWith(path.join(CWD, 'public') + path.sep) && fs.existsSync(publicPath)) {
-    const ext = path.extname(publicPath).toLowerCase();
-    const contentType = MIME_TYPES[ext] || 'application/octet-stream';
-    fs.readFile(publicPath, (err, data) => {
-      if (err) { sendError(res, err.message); return; }
-      sendResponse(res, 200, contentType, data);
-    });
-    return;
-  }
-
   let filePath = path.join(__dirname, pathname);
   if (pathname === '/') {
     filePath = path.join(__dirname, 'app.html');
@@ -3550,18 +1465,39 @@ const server = http.createServer(async (req, res) => {
   });
 });
 
+// GET /api/latest-image?dir=<path> - newest image from a directory
+// (inserted before graceful shutdown)
+const latestImageHandler = (parsedUrl, res) => {
+  const dir = parsedUrl.searchParams.get('dir');
+  if (!dir) return sendResponse(res, 200, 'application/json', JSON.stringify({ status: 'error', message: 'Missing dir parameter' }));
+  const resolved = path.resolve(dir.replace(/^~/, os.homedir()));
+  const home = os.homedir();
+  if (!resolved.startsWith(home + path.sep) && resolved !== home) {
+    return sendResponse(res, 200, 'application/json', JSON.stringify({ status: 'error', message: 'Directory must be under home' }));
+  }
+  try {
+    const imageExts = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.svg'];
+    const files = fs.readdirSync(resolved)
+      .filter(f => imageExts.includes(path.extname(f).toLowerCase()))
+      .map(f => ({ name: f, mtime: fs.statSync(path.join(resolved, f)).mtimeMs }))
+      .sort((a, b) => b.mtime - a.mtime);
+    if (files.length === 0) return sendResponse(res, 200, 'application/json', JSON.stringify({ status: 'ok', image: null, message: 'No images found' }));
+    const latest = files[0];
+    const ext = path.extname(latest.name).toLowerCase().replace('.', '');
+    const mime = ext === 'svg' ? 'image/svg+xml' : ext === 'jpg' ? 'image/jpeg' : `image/${ext}`;
+    const data = fs.readFileSync(path.join(resolved, latest.name));
+    const b64 = data.toString('base64');
+    sendResponse(res, 200, 'application/json', JSON.stringify({ status: 'ok', image: { name: latest.name, mtime: latest.mtime, dataUrl: `data:${mime};base64,${b64}` }, total: files.length }));
+  } catch (error) { sendResponse(res, 200, 'application/json', JSON.stringify({ status: 'error', message: error.message })); }
+};
+
 // Graceful shutdown
 process.on('SIGTERM', () => server.close(() => process.exit(0)));
 process.on('SIGINT', () => server.close(() => process.exit(0)));
 
 server.listen(PORT, HOST, () => {
-  const authStatus = DASHBOARD_PASSWORD
-    ? '   Password auth: ENABLED (DASHBOARD_PASSWORD is set)'
-    : '   Password auth: DISABLED — set DASHBOARD_PASSWORD=yourpassword to enable';
   console.log(`
-LobsterBoard Builder Server running at http://${HOST}:${PORT}
-
-${authStatus}
+🦞 LobsterBoard Builder Server running at http://${HOST}:${PORT}
 
    Press Ctrl+C to stop
 `);

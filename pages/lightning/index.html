@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LobsterBoard - Lightning</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0d1117; color: #e6edf3; }
+    .container { max-width: 1100px; margin: 0 auto; padding: 1.5rem; }
+    h1 { font-size: 1.6rem; margin-bottom: 1.2rem; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.2rem; margin-bottom: 1.5rem; }
+    .card { background: #161b22; border: 1px solid #30363d; border-radius: 10px; padding: 1.2rem; }
+    .card h2 { font-size: 1rem; color: #8b949e; margin-bottom: 0.8rem; display: flex; align-items: center; gap: 8px; }
+    .big-num { font-size: 2.4rem; font-weight: 700; color: #58a6ff; }
+    .big-num.green { color: #3fb950; }
+    .big-num.red { color: #f85149; }
+    .sub { font-size: 0.85rem; color: #8b949e; margin-top: 4px; }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: 600; }
+    .badge.long { background: #0d419d; color: #58a6ff; }
+    .badge.short { background: #5c1a1a; color: #f85149; }
+    .badge.running { background: #1a3a1a; color: #3fb950; }
+    .badge.closed { background: #30363d; color: #8b949e; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+    th { text-align: left; color: #8b949e; font-weight: 500; padding: 8px 10px; border-bottom: 1px solid #30363d; }
+    td { padding: 8px 10px; border-bottom: 1px solid #21262d; }
+    tr:hover { background: #161b2266; }
+    .pnl-pos { color: #3fb950; }
+    .pnl-neg { color: #f85149; }
+    .loading { color: #8b949e; font-style: italic; }
+    .full-width { grid-column: 1 / -1; }
+    @media (max-width: 700px) { .grid { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <nav id="page-nav"></nav>
+  <main class="container">
+    <h1>⚡ Lightning Dashboard</h1>
+    <div class="grid">
+      <div class="card">
+        <h2>🏦 LNbits Wallet</h2>
+        <div class="big-num" id="lnbits-bal">—</div>
+        <div class="sub" id="lnbits-name"></div>
+      </div>
+      <div class="card">
+        <h2>📈 LN Markets Account</h2>
+        <div class="big-num" id="lnm-balance">—</div>
+        <div class="sub" id="lnm-info"></div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:1.2rem;">
+      <h2>🤖 Active Strategies</h2>
+      <div id="bot-strategies"><span class="loading">Loading...</span></div>
+    </div>
+
+    <div class="card" style="margin-bottom:1.2rem;">
+      <h2>🟢 Open Positions</h2>
+      <div id="running-trades"><span class="loading">Loading...</span></div>
+    </div>
+
+    <div class="card">
+      <h2>📋 Recent Closed Trades</h2>
+      <div id="closed-trades"><span class="loading">Loading...</span></div>
+    </div>
+  </main>
+
+  <script src="/pages/_shared/nav.js"></script>
+  <script>
+    const API = '/api/pages/lightning';
+
+    function fmtSats(n) {
+      if (n == null) return '—';
+      return Number(n).toLocaleString() + ' sats';
+    }
+    function fmtPnl(n) {
+      if (n == null) return '—';
+      const cls = n >= 0 ? 'pnl-pos' : 'pnl-neg';
+      const sign = n >= 0 ? '+' : '';
+      return `<span class="${cls}">${sign}${Number(n).toLocaleString()} sats</span>`;
+    }
+    function fmtDate(ts) {
+      if (!ts) return '—';
+      const d = new Date(typeof ts === 'number' ? ts : ts);
+      return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' ' +
+             d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    }
+    function sideLabel(side) {
+      if (side === 'b') return '<span class="badge long">LONG</span>';
+      if (side === 's') return '<span class="badge short">SHORT</span>';
+      return side || '—';
+    }
+
+    async function loadLnbits() {
+      try {
+        const res = await fetch(API + '/lnbits');
+        const d = await res.json();
+        document.getElementById('lnbits-bal').textContent = fmtSats(d.balance_sats);
+        document.getElementById('lnbits-name').textContent = d.name || '';
+      } catch (e) {
+        document.getElementById('lnbits-bal').textContent = 'Error';
+      }
+    }
+
+    async function loadAccount() {
+      try {
+        const res = await fetch(API + '/lnmarkets/account');
+        const d = await res.json();
+        const bal = d.balance != null ? d.balance : d.synthetic_usd_balance;
+        document.getElementById('lnm-balance').textContent = fmtSats(bal);
+        const parts = [];
+        if (d.username) parts.push(d.username);
+        if (d.synthetic_usd_balance != null) parts.push('USD: $' + (d.synthetic_usd_balance / 100).toFixed(2));
+        document.getElementById('lnm-info').textContent = parts.join(' • ');
+      } catch (e) {
+        document.getElementById('lnm-balance').textContent = 'Error';
+      }
+    }
+
+    async function loadRunning() {
+      const el = document.getElementById('running-trades');
+      try {
+        const res = await fetch(API + '/lnmarkets/running');
+        let trades = await res.json();
+        trades = Array.isArray(trades) ? trades : (trades.data || []);
+        if (!trades.length) {
+          el.innerHTML = '<span class="sub">No open positions</span>';
+          return;
+        }
+        el.innerHTML = `<table>
+          <tr><th>Side</th><th>Leverage</th><th>Qty</th><th>Entry</th><th>Margin</th><th>P&L</th><th>SL</th><th>TP</th></tr>
+          ${trades.map(t => `<tr>
+            <td>${sideLabel(t.side === 'buy' ? 'b' : t.side === 'sell' ? 's' : t.side)}</td>
+            <td>${t.leverage ? t.leverage + 'x' : '—'}</td>
+            <td>${t.quantity || '—'}</td>
+            <td>$${Number(t.entryPrice || t.price || 0).toLocaleString()}</td>
+            <td>${fmtSats(t.margin)}</td>
+            <td>${fmtPnl(t.pl)}</td>
+            <td>${t.stoploss ? '$' + Number(t.stoploss).toLocaleString() : '—'}</td>
+            <td>${t.takeprofit ? '$' + Number(t.takeprofit).toLocaleString() : '—'}</td>
+          </tr>`).join('')}
+        </table>`;
+      } catch (e) {
+        el.innerHTML = '<span class="pnl-neg">Error loading trades</span>';
+      }
+    }
+
+    async function loadClosed() {
+      const el = document.getElementById('closed-trades');
+      try {
+        const res = await fetch(API + '/lnmarkets/closed?limit=15');
+        let trades = await res.json();
+        trades = Array.isArray(trades) ? trades : (trades.data || []);
+        if (!trades.length) {
+          el.innerHTML = '<span class="sub">No recent trades</span>';
+          return;
+        }
+        el.innerHTML = `<table>
+          <tr><th>Side</th><th>Leverage</th><th>Qty</th><th>Entry</th><th>Exit</th><th>P&L</th><th>Closed</th></tr>
+          ${trades.map(t => `<tr>
+            <td>${sideLabel(t.side === 'buy' ? 'b' : t.side === 'sell' ? 's' : t.side)}</td>
+            <td>${t.leverage ? t.leverage + 'x' : '—'}</td>
+            <td>${t.quantity || '—'}</td>
+            <td>$${Number(t.entryPrice || t.price || 0).toLocaleString()}</td>
+            <td>$${Number(t.exitPrice || t.closingPrice || 0).toLocaleString()}</td>
+            <td>${fmtPnl(t.pl)}</td>
+            <td>${fmtDate(t.closedAt || t.lastUpdate)}</td>
+          </tr>`).join('')}
+        </table>`;
+      } catch (e) {
+        el.innerHTML = '<span class="pnl-neg">Error loading trades</span>';
+      }
+    }
+
+    async function loadBotStrategies() {
+      const el = document.getElementById('bot-strategies');
+      try {
+        const res = await fetch(API + '/bot-status');
+        const strategies = await res.json();
+        if (strategies.error) throw new Error(strategies.error);
+        if (!strategies.length) {
+          el.innerHTML = '<span class="sub">No active strategies</span>';
+          return;
+        }
+        el.innerHTML = `<table>
+          <tr><th>Pair</th><th>Strategy</th><th>Timeframe</th><th>Status</th><th>W/L</th><th>P&L</th><th>Last Trade</th></tr>
+          ${strategies.map(s => `<tr>
+            <td><strong>${s.pair}</strong></td>
+            <td><span class="badge running">${s.strategy}</span></td>
+            <td>${s.timeframe}</td>
+            <td>${s.status}</td>
+            <td><span class="pnl-pos">${s.wins || 0}W</span> / <span class="pnl-neg">${s.losses || 0}L</span></td>
+            <td>${s.totalPl != null ? (s.totalPl >= 0 ? '<span class="pnl-pos">+' : '<span class="pnl-neg">') + Number(s.totalPl).toLocaleString() + ' sats</span>' : '—'}</td>
+            <td>${s.lastRun || '—'}</td>
+          </tr>`).join('')}
+        </table>`;
+      } catch (e) {
+        console.error('Bot strategies error:', e);
+        el.innerHTML = '<span class="sub">Strategy info unavailable</span>';
+      }
+    }
+
+    // Initial load
+    loadLnbits();
+    loadAccount();
+    loadBotStrategies();
+    loadRunning();
+    loadClosed();
+
+    // Refresh every 30s
+    setInterval(() => { loadLnbits(); loadAccount(); loadRunning(); }, 30000);
+    setInterval(loadClosed, 60000);
+  </script>
+</body>
+</html>

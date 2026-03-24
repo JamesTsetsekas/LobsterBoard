@@ -14,7 +14,7 @@ export const WIDGETS = {
     name: 'Local Weather',
     icon: '🌡️',
     category: 'small',
-    description: 'Shows current weather for a single location using wttr.in (no API key needed).',
+    description: 'Shows current weather for a single location using Open-Meteo (no API key needed).',
     defaultWidth: 200,
     defaultHeight: 120,
     hasApiKey: false,
@@ -42,23 +42,28 @@ export const WIDGETS = {
         </div>
       </div>`,
     generateJs: (props) => `
-      // Weather Widget: ${props.id} (uses free wttr.in API - no key needed)
+      // Weather Widget: ${props.id} (uses free Open-Meteo API - no key needed)
       async function update_${props.id.replace(/-/g, '_')}() {
         try {
           const location = encodeURIComponent('${props.location || 'Atlanta'}');
-          const res = await fetch('https://wttr.in/' + location + '?format=j1');
-          const data = await res.json();
-          const current = data.current_condition[0];
-          const temp = '${props.units}' === 'C' ? current.temp_C : current.temp_F;
+          // Step 1: Geocode location name to lat/lon
+          const geoRes = await fetch('https://geocoding-api.open-meteo.com/v1/search?name=' + location + '&count=1');
+          const geoData = await geoRes.json();
+          if (!geoData.results || !geoData.results.length) throw new Error('Location not found');
+          const { latitude, longitude, name } = geoData.results[0];
+          // Step 2: Get current weather
+          const units = '${props.units}' === 'C' ? 'celsius' : 'fahrenheit';
+          const wxRes = await fetch('https://api.open-meteo.com/v1/forecast?latitude=' + latitude + '&longitude=' + longitude + '&current=temperature_2m,weather_code&temperature_unit=' + units);
+          const wxData = await wxRes.json();
+          const current = wxData.current;
+          const temp = Math.round(current.temperature_2m);
           const unit = '${props.units}' === 'C' ? '°C' : '°F';
           document.getElementById('${props.id}-value').textContent = temp + unit;
-          document.getElementById('${props.id}-label').textContent = current.weatherDesc[0].value;
-          const code = parseInt(current.weatherCode);
-          let icon = '🌡️';
-          if (code === 113) icon = '☀️';
-          else if (code === 116 || code === 119) icon = '⛅';
-          else if (code >= 176 && code <= 359) icon = '🌧️';
-          else if (code >= 368 && code <= 395) icon = '❄️';
+          // WMO weather code to description & icon
+          const wmo = current.weather_code;
+          const wmoMap = {0:['Clear','☀️'],1:['Mostly Clear','🌤️'],2:['Partly Cloudy','⛅'],3:['Overcast','☁️'],45:['Fog','🌫️'],48:['Fog','🌫️'],51:['Light Drizzle','🌦️'],53:['Drizzle','🌦️'],55:['Heavy Drizzle','🌧️'],61:['Light Rain','🌧️'],63:['Rain','🌧️'],65:['Heavy Rain','🌧️'],71:['Light Snow','🌨️'],73:['Snow','❄️'],75:['Heavy Snow','❄️'],77:['Snow Grains','❄️'],80:['Light Showers','🌦️'],81:['Showers','🌧️'],82:['Heavy Showers','🌧️'],85:['Snow Showers','🌨️'],86:['Heavy Snow Showers','❄️'],95:['Thunderstorm','⛈️'],96:['Thunderstorm w/ Hail','⛈️'],99:['Thunderstorm w/ Hail','⛈️']};
+          const [desc, icon] = wmoMap[wmo] || ['Unknown','🌡️'];
+          document.getElementById('${props.id}-label').textContent = desc;
           document.getElementById('${props.id}-icon').textContent = icon;
         } catch (e) {
           console.error('Weather widget error:', e);
@@ -470,6 +475,76 @@ export const WIDGETS = {
       // Top Bar Widget: ${props.id}
       document.getElementById('${props.id}-refresh').textContent = 
         new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+    `
+  },
+
+  'lnmarkets-balance': {
+    name: 'LN Markets',
+    icon: '📈',
+    category: 'small',
+    description: 'LN Markets account balance, open positions count, and PnL.',
+    defaultWidth: 260,
+    defaultHeight: 140,
+    hasApiKey: false,
+    properties: { title: 'LN Markets', refreshInterval: 60 },
+    preview: `<div style="padding:8px;text-align:center;"><div style="font-size:20px;font-weight:700;color:#f7931a;">494,411 sats</div><div style="font-size:10px;color:#8b949e;">LN Markets</div></div>`,
+    generateHtml: (props) => `<div class="dash-card" id="widget-${props.id}" style="height:100%;"><div class="dash-card-head"><span class="dash-card-title">📈 ${props.title||'LN Markets'}</span></div><div class="dash-card-body" id="${props.id}-body" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:8px;"><div style="color:#8b949e;">Loading...</div></div></div>`,
+    generateJs: (props) => `
+      function fmtS_${props.id.replace(/-/g,'_')}(n){return n!=null?Number(n).toLocaleString():'—';}
+      async function update_${props.id.replace(/-/g,'_')}(){const body=document.getElementById('${props.id}-body');try{const[a,p]=await Promise.allSettled([fetch('/api/pages/lightning/lnmarkets/account').then(r=>r.json()),fetch('/api/pages/lightning/lnmarkets/running').then(r=>r.json())]);const acct=a.status==='fulfilled'?a.value:null;const pos=p.status==='fulfilled'&&Array.isArray(p.value)?p.value:[];const bal=acct&&acct.balance!=null?Number(acct.balance):null;const pl=pos.reduce((s,x)=>s+(Number(x.pl)||0),0);let h='<div style="font-size:calc(22px * var(--font-scale,1));font-weight:700;color:#f7931a;">'+fmtS_${props.id.replace(/-/g,'_')}(bal)+' sats</div>';h+='<div style="font-size:calc(10px * var(--font-scale,1));color:#8b949e;">';h+=pos.length>0?pos.length+' open · P&L: <span style="color:'+(pl>=0?'#3fb950':'#f85149')+';">'+(pl>=0?'+':'')+fmtS_${props.id.replace(/-/g,'_')}(pl)+'</span>':'No open positions';h+='</div>';body.innerHTML=h;}catch(e){body.innerHTML='<div style="color:#f85149;">Failed</div>';}}
+      update_${props.id.replace(/-/g,'_')}();setInterval(update_${props.id.replace(/-/g,'_')},${(props.refreshInterval||60)*1000});
+    `
+  },
+
+  'lnbits-balance': {
+    name: 'LNbits Wallet',
+    icon: '🏦',
+    category: 'small',
+    description: 'LNbits wallet balance.',
+    defaultWidth: 200,
+    defaultHeight: 140,
+    hasApiKey: false,
+    properties: { title: 'LNbits', refreshInterval: 60 },
+    preview: `<div style="padding:8px;text-align:center;"><div style="font-size:20px;font-weight:700;color:#f7931a;">0 sats</div><div style="font-size:10px;color:#8b949e;">LNbits</div></div>`,
+    generateHtml: (props) => `<div class="dash-card" id="widget-${props.id}" style="height:100%;"><div class="dash-card-head"><span class="dash-card-title">🏦 ${props.title||'LNbits'}</span></div><div class="dash-card-body" id="${props.id}-body" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:8px;"><div style="color:#8b949e;">Loading...</div></div></div>`,
+    generateJs: (props) => `
+      async function update_${props.id.replace(/-/g,'_')}(){const body=document.getElementById('${props.id}-body');try{const res=await fetch('/api/pages/lightning/lnbits');const d=await res.json();const bal=d.balance!=null?Math.floor(d.balance/1000):null;let h='<div style="font-size:calc(22px * var(--font-scale,1));font-weight:700;color:#f7931a;">'+(bal!=null?bal.toLocaleString():'—')+' sats</div>';h+='<div style="font-size:calc(10px * var(--font-scale,1));color:#8b949e;">'+(d.name||'LNbits')+'</div>';body.innerHTML=h;}catch(e){body.innerHTML='<div style="color:#f85149;">Failed</div>';}}
+      update_${props.id.replace(/-/g,'_')}();setInterval(update_${props.id.replace(/-/g,'_')},${(props.refreshInterval||60)*1000});
+    `
+  },
+
+  'claude-usage': {
+    name: 'Claude Usage',
+    icon: '🤖',
+    category: 'large',
+    description: 'Real-time Claude Code subscription usage (5h session, 7d weekly, Opus, Sonnet limits).',
+    defaultWidth: 380,
+    defaultHeight: 260,
+    hasApiKey: false,
+    properties: {
+      title: 'Claude Usage',
+      refreshInterval: 120
+    },
+    preview: `<div style="padding:8px;font-size:11px;">
+      <div><b>5h Session</b> 28%</div>
+      <div><b>7d Weekly</b> 31%</div>
+    </div>`,
+    generateHtml: (props) => `
+      <div class="dash-card" id="widget-${props.id}" style="height:100%;">
+        <div class="dash-card-head">
+          <span class="dash-card-title">🤖 ${props.title || 'Claude Usage'}</span>
+          <span id="${props.id}-sub" style="font-size:10px;color:#8b949e;margin-left:auto;"></span>
+        </div>
+        <div class="dash-card-body" id="${props.id}-body" style="padding:8px 12px;overflow-y:auto;">
+          <div style="color:#8b949e;text-align:center;">Loading...</div>
+        </div>
+      </div>`,
+    generateJs: (props) => `
+      function barColor(pct) { return pct >= 80 ? '#f85149' : pct >= 50 ? '#d29922' : '#3fb950'; }
+      function timeLeft(iso) { if (!iso) return ''; const ms = new Date(iso) - Date.now(); if (ms <= 0) return 'now'; const h = Math.floor(ms/3600000), m = Math.floor((ms%3600000)/60000); return h > 0 ? h+'h '+m+'m' : m+'m'; }
+      function usageBar(label, pct, resetIso) { const p = Math.min(100,Math.max(0,pct||0)), c = barColor(p), reset = resetIso ? '<span style="color:#8b949e;font-size:10px;">resets '+timeLeft(resetIso)+'</span>' : ''; return '<div style="margin-bottom:10px;"><div style="display:flex;justify-content:space-between;margin-bottom:3px;"><span style="font-weight:600;font-size:12px;">'+label+'</span><span style="font-size:13px;font-weight:700;color:'+c+';">'+p.toFixed(0)+'%</span></div><div style="background:#21262d;border-radius:4px;height:8px;overflow:hidden;"><div style="width:'+p+'%;height:100%;background:'+c+';border-radius:4px;transition:width .5s;"></div></div>'+(reset?'<div style="text-align:right;margin-top:2px;">'+reset+'</div>':'')+'</div>'; }
+      async function update_${props.id.replace(/-/g,'_')}() { const body = document.getElementById('${props.id}-body'); const subEl = document.getElementById('${props.id}-sub'); try { const res = await fetch('/api/pages/claude-usage/usage'); const d = await res.json(); if (d.error) { body.innerHTML='<div style="color:#f85149;">'+d.error+'</div>'; return; } if (subEl) { subEl.textContent = {max:'Max (5×)',pro:'Pro',free:'Free'}[d.subscription]||d.subscription||''; } let html=''; if(d.five_hour) html+=usageBar('5h Session',d.five_hour.utilization,d.five_hour.resets_at); if(d.seven_day) html+=usageBar('7d Weekly',d.seven_day.utilization,d.seven_day.resets_at); if(d.seven_day_opus) html+=usageBar('Opus (7d)',d.seven_day_opus.utilization,d.seven_day_opus.resets_at); if(d.seven_day_sonnet&&d.seven_day_sonnet.utilization>0) html+=usageBar('Sonnet (7d)',d.seven_day_sonnet.utilization,d.seven_day_sonnet.resets_at); if(d.extra_usage&&d.extra_usage.is_enabled){const used=(d.extra_usage.used_credits/100).toFixed(2),limit=d.extra_usage.monthly_limit>0?(d.extra_usage.monthly_limit/100).toFixed(2):'∞';html+='<div style="margin-top:4px;padding-top:6px;border-top:1px solid #30363d;"><div style="display:flex;justify-content:space-between;font-size:11px;"><span style="color:#8b949e;">Extra Usage</span><span style="font-weight:600;">$'+used+' / $'+limit+'</span></div></div>';} if(!html) html='<div style="color:#8b949e;">No usage data</div>'; body.innerHTML=html; } catch(e) { console.error('Claude usage error:',e); body.innerHTML='<div style="color:#f85149;">Failed to load</div>'; } }
+      update_${props.id.replace(/-/g,'_')}(); setInterval(update_${props.id.replace(/-/g,'_')}, ${(props.refreshInterval||120)*1000});
     `
   }
 };

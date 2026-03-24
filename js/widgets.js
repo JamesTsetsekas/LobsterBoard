@@ -4,140 +4,6 @@
  */
 
 // ─────────────────────────────────────────────
-// Security helpers (available to generated widget scripts via window)
-// ─────────────────────────────────────────────
-
-function _escHtmlGlobal(str) {
-  if (str == null) return '';
-  const div = document.createElement('div');
-  div.textContent = String(str);
-  return div.innerHTML;
-}
-window._esc = _escHtmlGlobal;
-
-function _isSafeUrl(url) {
-  if (!url) return false;
-  try {
-    const u = new URL(url);
-    return u.protocol === 'https:' || u.protocol === 'http:';
-  } catch (e) {
-    return false;
-  }
-}
-window._isSafeUrl = _isSafeUrl;
-
-// ─────────────────────────────────────────────
-// Icon System - Themeable widget icons
-// ─────────────────────────────────────────────
-const WIDGET_ICONS = {
-  // Weather
-  'weather': { emoji: '🌡️', phosphor: 'thermometer' },
-  'weather-sunny': { emoji: '☀️', phosphor: 'sun' },
-  'weather-cloudy': { emoji: '⛅', phosphor: 'cloud-sun' },
-  'weather-rainy': { emoji: '🌧️', phosphor: 'cloud-rain' },
-  'weather-snowy': { emoji: '❄️', phosphor: 'snowflake' },
-  'world-weather': { emoji: '🌍', phosphor: 'globe' },
-  
-  // Time
-  'clock': { emoji: '🕐', phosphor: 'clock' },
-  'countdown': { emoji: '⏳', phosphor: 'hourglass' },
-  'cron': { emoji: '⏰', phosphor: 'timer' },
-  'pomodoro': { emoji: '🎯', phosphor: 'crosshair' },
-  'world-clock': { emoji: '🌍', phosphor: 'globe' },
-  
-  // System
-  'cpu': { emoji: '💻', phosphor: 'cpu' },
-  'memory': { emoji: '🧠', phosphor: 'brain' },
-  'disk': { emoji: '💾', phosphor: 'hard-drive' },
-  'network': { emoji: '🌐', phosphor: 'wifi-high' },
-  'docker': { emoji: '🐳', phosphor: 'cube' },
-  'uptime': { emoji: '📡', phosphor: 'broadcast' },
-  'system-log': { emoji: '🔧', phosphor: 'wrench' },
-  
-  // Auth / Security
-  'auth': { emoji: '🔐', phosphor: 'lock-key' },
-  'sleep': { emoji: '😴', phosphor: 'moon' },
-  
-  // Releases
-  'lobster': { emoji: '🦞', phosphor: 'package' },
-  'release': { emoji: '📦', phosphor: 'package' },
-  
-  // Lists / Activity
-  'activity': { emoji: '📋', phosphor: 'list' },
-  'calendar': { emoji: '📅', phosphor: 'calendar' },
-  'notes': { emoji: '📝', phosphor: 'note' },
-  'todo': { emoji: '✅', phosphor: 'check-square' },
-  'pages': { emoji: '📑', phosphor: 'files' },
-  
-  // AI / Monitoring
-  'ai-usage': { emoji: '🤖', phosphor: 'robot' },
-  'claude-code': { emoji: '🟣', phosphor: 'circle' },
-  'codex-cli': { emoji: '🟢', phosphor: 'circle' },
-  'github-copilot': { emoji: '⚫', phosphor: 'circle' },
-  'cursor': { emoji: '🔵', phosphor: 'circle' },
-  'gemini-cli': { emoji: '🔷', phosphor: 'diamond' },
-  'amp-code': { emoji: '⚡', phosphor: 'lightning' },
-  'factory': { emoji: '🏭', phosphor: 'factory' },
-  'kimi-code': { emoji: '🌙', phosphor: 'moon' },
-  'jetbrains-ai': { emoji: '🧠', phosphor: 'brain' },
-  'minimax': { emoji: '🔶', phosphor: 'diamond' },
-  'zai': { emoji: '🇿', phosphor: 'sparkle' },
-  'antigravity': { emoji: '🪐', phosphor: 'planet' },
-  'ai-claude': { emoji: '🟣', phosphor: 'circle' },
-  'ai-cost': { emoji: '💰', phosphor: 'currency-dollar' },
-  'api-status': { emoji: '🔄', phosphor: 'arrows-clockwise' },
-  'sessions': { emoji: '💬', phosphor: 'chat-dots' },
-  'tokens': { emoji: '📊', phosphor: 'chart-bar' },
-  
-  // Finance
-  'stock': { emoji: '📈', phosphor: 'chart-line-up' },
-  'crypto': { emoji: '₿', phosphor: 'currency-btc' },
-  
-  // Productivity
-  'email': { emoji: '📧', phosphor: 'envelope' },
-  'github': { emoji: '🐙', phosphor: 'git-branch' },
-  
-  // Smart Home
-  'home': { emoji: '🏠', phosphor: 'house' },
-  'camera': { emoji: '📷', phosphor: 'camera' },
-  'power': { emoji: '🔌', phosphor: 'plug' },
-  
-  // Media
-  'music': { emoji: '🎵', phosphor: 'music-notes' },
-  'quote': { emoji: '💭', phosphor: 'quotes' },
-  
-  // Images
-  'image': { emoji: '🖼️', phosphor: 'image' },
-  'image-random': { emoji: '🎲', phosphor: 'shuffle' },
-  'image-new': { emoji: '🆕', phosphor: 'sparkle' },
-  
-  // Links / Embeds
-  'links': { emoji: '🔗', phosphor: 'link' },
-  'embed': { emoji: '🌐', phosphor: 'browser' },
-  'rss': { emoji: '📡', phosphor: 'rss' },
-  
-  // Layout
-  'header': { emoji: '🔤', phosphor: 'text-aa' },
-  'line-h': { emoji: '➖', phosphor: 'minus' },
-  'line-v': { emoji: '│', phosphor: 'line-vertical' },
-};
-
-/**
- * Renders a themeable icon span
- * @param {string} iconId - Key from WIDGET_ICONS
- * @returns {string} HTML span element with data-icon attribute
- */
-function renderIcon(iconId) {
-  const icon = WIDGET_ICONS[iconId];
-  const emoji = icon ? icon.emoji : '●';
-  return `<span class="lb-icon" data-icon="${iconId}">${emoji}</span> `;
-}
-
-// Expose for external use
-window.renderIcon = renderIcon;
-window.WIDGET_ICONS = WIDGET_ICONS;
-
-// ─────────────────────────────────────────────
 // Shared SSE connection for system stats widgets
 // ─────────────────────────────────────────────
 let _statsSource = null;
@@ -160,109 +26,6 @@ function onSystemStats(callback) {
     };
   }
 }
-
-// ─────────────────────────────────────────────
-// Remote server polling for system stats
-// ─────────────────────────────────────────────
-const _remotePollers = {}; // serverId -> { interval, callbacks, lastData, errors, lastSuccess }
-
-function onRemoteStats(serverId, callback, refreshMs = 10000) {
-  if (!_remotePollers[serverId]) {
-    _remotePollers[serverId] = { 
-      callbacks: [], 
-      interval: null, 
-      lastData: null,
-      errors: 0,
-      lastSuccess: null,
-      offline: false
-    };
-    
-    const poll = async () => {
-      const poller = _remotePollers[serverId];
-      try {
-        const res = await fetch(`/api/servers/${serverId}/stats`, {
-          signal: AbortSignal.timeout(10000) // 10s timeout
-        });
-        if (res.ok) {
-          const data = await res.json();
-          const normalized = _normalizeRemoteStats(data);
-          poller.lastData = normalized;
-          poller.errors = 0;
-          poller.lastSuccess = Date.now();
-          poller.offline = false;
-          poller.callbacks.forEach(cb => cb(normalized));
-        } else {
-          throw new Error(`HTTP ${res.status}`);
-        }
-      } catch (e) {
-        poller.errors++;
-        console.warn(`Remote stats error (${serverId}, attempt ${poller.errors}):`, e.message);
-        
-        // After 3 consecutive failures, mark as offline and notify widgets
-        if (poller.errors >= 3 && !poller.offline) {
-          poller.offline = true;
-          const offlineData = {
-            _offline: true,
-            _error: e.message,
-            _lastSuccess: poller.lastSuccess,
-            _serverId: serverId
-          };
-          poller.callbacks.forEach(cb => cb(offlineData));
-        }
-      }
-    };
-    
-    poll(); // Initial fetch
-    _remotePollers[serverId].interval = setInterval(poll, refreshMs);
-  }
-  
-  _remotePollers[serverId].callbacks.push(callback);
-  
-  // If we have cached data, call immediately
-  if (_remotePollers[serverId].lastData) {
-    callback(_remotePollers[serverId].lastData);
-  }
-}
-
-// Normalize remote agent stats to match local SSE format
-function _normalizeRemoteStats(data) {
-  return {
-    uptime: data.uptime,
-    cpu: data.cpu ? {
-      currentLoad: data.cpu.usage || 0,
-      cores: data.cpu.cores || 0,
-    } : null,
-    memory: data.memory ? {
-      total: data.memory.total || 0,
-      active: data.memory.used || 0,
-      available: data.memory.available || 0,
-    } : null,
-    disk: data.disk ? [{
-      mount: data.disk.mount || '/',
-      size: data.disk.total || 0,
-      used: data.disk.used || 0,
-    }] : null,
-    network: data.network ? [{
-      rx_sec: data.network.rxSec || 0,
-      tx_sec: data.network.txSec || 0,
-    }] : null,
-    docker: data.docker,
-    openclaw: data.openclaw,
-    serverName: data.serverName,
-    _remote: true,
-  };
-}
-
-// Unified stats function: local or remote
-function onStats(serverId, callback, refreshMs = 10000) {
-  if (!serverId || serverId === 'local') {
-    onSystemStats(callback);
-  } else {
-    onRemoteStats(serverId, callback, refreshMs);
-  }
-}
-
-window.onStats = onStats;
 
 function _formatBytes(bytes, decimals = 1) {
   if (bytes === 0 || bytes == null) return '0 B';
@@ -321,10 +84,10 @@ const WIDGETS = {
     generateHtml: (props) => `
       <div class="dash-card" id="widget-${props.id}" style="height:100%;">
         <div class="dash-card-head">
-          <span class="dash-card-title">${renderIcon('weather')} ${props.title || 'Local Weather'}</span>
+          <span class="dash-card-title">🌡️ ${props.title || 'Local Weather'}</span>
         </div>
         <div class="dash-card-body" style="display:flex;align-items:center;justify-content:center;gap:10px;">
-          <span id="${props.id}-icon" class="lb-icon lb-icon-lg" data-icon="weather">🌡️</span>
+          <span id="${props.id}-icon" style="font-size:calc(24px * var(--font-scale, 1));">🌡️</span>
           <div>
             <div class="kpi-value blue" id="${props.id}-value">Loading...</div>
             <div class="kpi-label" id="${props.id}-label">${props.location || 'Location'}</div>
@@ -333,36 +96,31 @@ const WIDGETS = {
       </div>`,
     generateJs: (props) => `
       // Weather Widget: ${props.id} (uses free Open-Meteo API - no key needed)
-      const WMO_DESC = {0:'Clear sky',1:'Mainly clear',2:'Partly cloudy',3:'Overcast',45:'Fog',48:'Rime fog',51:'Light drizzle',53:'Drizzle',55:'Dense drizzle',61:'Slight rain',63:'Moderate rain',65:'Heavy rain',71:'Slight snow',73:'Moderate snow',75:'Heavy snow',80:'Slight showers',81:'Moderate showers',82:'Violent showers',95:'Thunderstorm',96:'Hail thunderstorm',99:'Heavy hail'};
-      function wmoIcon(code) {
-        if (code <= 1) return 'weather-sunny';
-        if (code <= 3) return 'weather-cloudy';
-        if (code >= 51 && code <= 82) return 'weather-rainy';
-        if (code >= 71 && code <= 77) return 'weather-snowy';
-        if (code >= 95) return 'weather-rainy';
-        return 'weather';
-      }
       async function update_${props.id.replace(/-/g, '_')}() {
         const valEl = document.getElementById('${props.id}-value');
         const labelEl = document.getElementById('${props.id}-label');
         const iconEl = document.getElementById('${props.id}-icon');
         try {
-          const loc = '${props.location || 'Atlanta'}';
-          const geoRes = await fetch('https://geocoding-api.open-meteo.com/v1/search?name=' + encodeURIComponent(loc) + '&count=1');
+          const location = encodeURIComponent('${props.location || 'Atlanta'}');
+          // Geocode location name to lat/lon
+          const geoRes = await fetch('https://geocoding-api.open-meteo.com/v1/search?name=' + location + '&count=1');
           const geoData = await geoRes.json();
-          if (!geoData.results || !geoData.results.length) throw new Error('City not found');
-          const {latitude, longitude} = geoData.results[0];
-          const tempUnit = '${props.units}' === 'C' ? 'celsius' : 'fahrenheit';
-          const res = await fetch('https://api.open-meteo.com/v1/forecast?latitude=' + latitude + '&longitude=' + longitude + '&current=temperature_2m,weathercode,windspeed_10m&temperature_unit=' + tempUnit);
-          const data = await res.json();
-          const c = data.current;
+          if (!geoData.results || !geoData.results.length) throw new Error('Location not found');
+          const { latitude, longitude } = geoData.results[0];
+          // Get current weather
+          const units = '${props.units}' === 'C' ? 'celsius' : 'fahrenheit';
+          const wxRes = await fetch('https://api.open-meteo.com/v1/forecast?latitude=' + latitude + '&longitude=' + longitude + '&current=temperature_2m,weather_code&temperature_unit=' + units);
+          const wxData = await wxRes.json();
+          const current = wxData.current;
+          const temp = Math.round(current.temperature_2m);
           const unit = '${props.units}' === 'C' ? '°C' : '°F';
-          valEl.textContent = Math.round(c.temperature_2m) + unit;
-          labelEl.textContent = WMO_DESC[c.weathercode] || 'Unknown';
-          const iconId = wmoIcon(c.weathercode);
-          iconEl.setAttribute('data-icon', iconId);
-          const icons = window.WIDGET_ICONS || {};
-          iconEl.textContent = icons[iconId] ? icons[iconId].emoji : '🌡️';
+          valEl.textContent = temp + unit;
+          // WMO weather code to description & icon
+          const wmo = current.weather_code;
+          const wmoMap = {0:['Clear','☀️'],1:['Mostly Clear','🌤️'],2:['Partly Cloudy','⛅'],3:['Overcast','☁️'],45:['Fog','🌫️'],48:['Fog','🌫️'],51:['Light Drizzle','🌦️'],53:['Drizzle','🌦️'],55:['Heavy Drizzle','🌧️'],61:['Light Rain','🌧️'],63:['Rain','🌧️'],65:['Heavy Rain','🌧️'],71:['Light Snow','🌨️'],73:['Snow','❄️'],75:['Heavy Snow','❄️'],77:['Snow Grains','❄️'],80:['Light Showers','🌦️'],81:['Showers','🌧️'],82:['Heavy Showers','🌧️'],85:['Snow Showers','🌨️'],86:['Heavy Snow Showers','❄️'],95:['Thunderstorm','⛈️'],96:['Thunderstorm w/ Hail','⛈️'],99:['Thunderstorm w/ Hail','⛈️']};
+          const [desc, icon] = wmoMap[wmo] || ['Unknown','🌡️'];
+          labelEl.textContent = desc;
+          iconEl.textContent = icon;
         } catch (e) {
           console.error('Weather widget error:', e);
           if (!valEl.dataset.loaded) valEl.textContent = 'Unavailable';
@@ -396,51 +154,42 @@ const WIDGETS = {
     generateHtml: (props) => `
       <div class="dash-card" id="widget-${props.id}" style="height:100%;">
         <div class="dash-card-head">
-          <span class="dash-card-title">${renderIcon('world-weather')} ${props.title || 'World Weather'}</span>
+          <span class="dash-card-title">🌍 ${props.title || 'World Weather'}</span>
         </div>
         <div class="dash-card-body" id="${props.id}-list">
-          <div class="weather-row"><span class="weather-icon lb-icon" data-icon="weather-sunny">☀️</span><span class="weather-loc">New York</span><span class="weather-temp">72°F</span></div>
-          <div class="weather-row"><span class="weather-icon lb-icon" data-icon="weather-cloudy">⛅</span><span class="weather-loc">London</span><span class="weather-temp">58°F</span></div>
-          <div class="weather-row"><span class="weather-icon lb-icon" data-icon="weather-rainy">🌧️</span><span class="weather-loc">Tokyo</span><span class="weather-temp">65°F</span></div>
+          <div class="weather-row"><span class="weather-icon">☀️</span><span class="weather-loc">New York</span><span class="weather-temp">72°F</span></div>
+          <div class="weather-row"><span class="weather-icon">⛅</span><span class="weather-loc">London</span><span class="weather-temp">58°F</span></div>
+          <div class="weather-row"><span class="weather-icon">🌧️</span><span class="weather-loc">Tokyo</span><span class="weather-temp">65°F</span></div>
         </div>
       </div>`,
     generateJs: (props) => `
-      // Multi Weather Widget: ${props.id} (uses free Open-Meteo API - no key needed)
-      const WMO_DESC2 = {0:'Clear',1:'Clear',2:'Partly cloudy',3:'Overcast',45:'Fog',48:'Rime fog',51:'Drizzle',53:'Drizzle',55:'Drizzle',61:'Rain',63:'Rain',65:'Heavy rain',71:'Snow',73:'Snow',75:'Heavy snow',80:'Showers',81:'Showers',82:'Showers',95:'Storm',96:'Hail',99:'Hail'};
-      function wmoIcon2(code) {
-        if (code <= 1) return 'weather-sunny';
-        if (code <= 3) return 'weather-cloudy';
-        if (code >= 51 && code <= 82) return 'weather-rainy';
-        if (code >= 71 && code <= 77) return 'weather-snowy';
-        if (code >= 95) return 'weather-rainy';
-        return 'weather';
-      }
+      // Multi Weather Widget: ${props.id} (uses free wttr.in API - no key needed)
       async function update_${props.id.replace(/-/g, '_')}() {
         const locations = '${props.locations || 'New York; London; Tokyo'}'.split(';').map(l => l.trim());
         const container = document.getElementById('${props.id}-list');
-        const tempUnit = '${props.units}' === 'C' ? 'celsius' : 'fahrenheit';
-        const unitSymbol = '${props.units}' === 'C' ? '°C' : '°F';
+        const unit = '${props.units}' === 'C' ? 'C' : 'F';
+        const unitSymbol = unit === 'C' ? '°C' : '°F';
         
         const results = await Promise.all(locations.map(async (loc) => {
           try {
-            const geoRes = await fetch('https://geocoding-api.open-meteo.com/v1/search?name=' + encodeURIComponent(loc) + '&count=1');
-            const geoData = await geoRes.json();
-            if (!geoData.results || !geoData.results.length) return { loc, temp: 'N/A', iconId: 'weather', emoji: '❓' };
-            const {latitude, longitude} = geoData.results[0];
-            const res = await fetch('https://api.open-meteo.com/v1/forecast?latitude=' + latitude + '&longitude=' + longitude + '&current=temperature_2m,weathercode&temperature_unit=' + tempUnit);
+            const res = await fetch('https://wttr.in/' + encodeURIComponent(loc) + '?format=j1');
             const data = await res.json();
-            const c = data.current;
-            const iconId = wmoIcon2(c.weathercode);
-            const icons = window.WIDGET_ICONS || {};
-            const emoji = icons[iconId] ? icons[iconId].emoji : '🌡️';
-            return { loc, temp: Math.round(c.temperature_2m), iconId, emoji };
+            const current = data.current_condition[0];
+            const temp = unit === 'C' ? current.temp_C : current.temp_F;
+            const code = parseInt(current.weatherCode);
+            let icon = '🌡️';
+            if (code === 113) icon = '☀️';
+            else if (code === 116 || code === 119) icon = '⛅';
+            else if (code >= 176 && code <= 359) icon = '🌧️';
+            else if (code >= 368 && code <= 395) icon = '❄️';
+            return { loc, temp, icon, desc: current.weatherDesc[0].value };
           } catch (e) {
-            return { loc, temp: 'N/A', iconId: 'weather', emoji: '❓' };
+            return { loc, temp: 'N/A', icon: '❓', desc: 'Error' };
           }
         }));
         
-        container.innerHTML = results.map(r =>
-          '<div class="weather-row"><span class="weather-icon lb-icon" data-icon="' + _esc(r.iconId) + '">' + _esc(r.emoji) + '</span><span class="weather-loc">' + _esc(r.loc) + '</span><span class="weather-temp">' + _esc(String(r.temp)) + _esc(unitSymbol) + '</span></div>'
+        container.innerHTML = results.map(r => 
+          '<div class="weather-row"><span class="weather-icon">' + r.icon + '</span><span class="weather-loc">' + r.loc + '</span><span class="weather-temp">' + r.temp + unitSymbol + '</span></div>'
         ).join('');
       }
       update_${props.id.replace(/-/g, '_')}();
@@ -459,7 +208,6 @@ const WIDGETS = {
     apiKeyName: 'OPENCLAW_API',
     properties: {
       title: 'Auth Type',
-      server: 'local',
       endpoint: '/api/status',
       refreshInterval: 30
     },
@@ -471,7 +219,7 @@ const WIDGETS = {
     generateHtml: (props) => `
       <div class="dash-card" id="widget-${props.id}" style="height:100%;">
         <div class="dash-card-head">
-          <span class="dash-card-title">${renderIcon('auth')} ${props.title || 'Auth Type'}</span>
+          <span class="dash-card-title">🔐 ${props.title || 'Auth Type'}</span>
         </div>
         <div class="dash-card-body" style="display:flex;align-items:center;justify-content:center;gap:10px;">
           <div class="kpi-indicator" id="${props.id}-dot"></div>
@@ -479,25 +227,15 @@ const WIDGETS = {
         </div>
       </div>`,
     generateJs: (props) => `
-      // Auth Status Widget: ${props.id} — ${props.server === 'local' ? 'local' : 'remote: ' + props.server}
+      // Auth Status Widget: ${props.id}
       async function update_${props.id.replace(/-/g, '_')}() {
-        const serverId = '${props.server || 'local'}';
-        const dot = document.getElementById('${props.id}-dot');
-        const val = document.getElementById('${props.id}-value');
         try {
-          let authData;
-          if (serverId === 'local') {
-            const res = await fetch('/api/auth');
-            authData = await res.json();
-          } else {
-            const res = await fetch('/api/servers/' + serverId + '/stats');
-            const data = await res.json();
-            if (data.error) throw new Error(data.error);
-            if (!data.openclaw?.auth) throw new Error('Auth data not available');
-            authData = { status: 'ok', mode: data.openclaw.auth.mode };
-          }
-          if (authData.status === 'ok' || authData.mode) {
-            const isMonthly = authData.mode === 'Monthly';
+          const res = await fetch('/api/auth');
+          const data = await res.json();
+          const dot = document.getElementById('${props.id}-dot');
+          const val = document.getElementById('${props.id}-value');
+          if (data.status === 'ok') {
+            const isMonthly = data.mode === 'Monthly';
             val.textContent = isMonthly ? 'Max' : 'API';
             dot.className = 'kpi-indicator ' + (isMonthly ? 'green' : 'yellow');
           } else {
@@ -505,7 +243,7 @@ const WIDGETS = {
           }
         } catch (e) {
           console.error('Auth status widget error:', e);
-          val.textContent = '—';
+          document.getElementById('${props.id}-value').textContent = '—';
         }
       }
       update_${props.id.replace(/-/g, '_')}();
@@ -533,7 +271,7 @@ const WIDGETS = {
     generateHtml: (props) => `
       <div class="dash-card" id="widget-${props.id}" style="height:100%;">
         <div class="dash-card-head">
-          <span class="dash-card-title">${renderIcon('sleep')} ${props.title || 'Sleep Score'}</span>
+          <span class="dash-card-title">😴 ${props.title || 'Sleep Score'}</span>
         </div>
         <div class="dash-card-body" style="display:flex;align-items:center;justify-content:center;gap:10px;">
           <div class="kpi-ring-wrap kpi-ring-sm">
@@ -584,10 +322,10 @@ const WIDGETS = {
     generateHtml: (props) => `
       <div class="dash-card" id="widget-${props.id}" style="height:100%;">
         <div class="dash-card-head">
-          <span class="dash-card-title">${renderIcon('lobster')} ${props.title || 'LobsterBoard'}</span>
+          <span class="dash-card-title">🦞 ${props.title || 'LobsterBoard'}</span>
         </div>
         <div class="dash-card-body" style="display:flex;align-items:center;gap:10px;padding:8px 12px;">
-          <span class="lb-icon lb-icon-lg" data-icon="lobster">🦞</span>
+          <span style="font-size:calc(20px * var(--font-scale, 1));">🦞</span>
           <div>
             <div id="${props.id}-versions" style="display:flex;align-items:center;gap:6px;font-size:calc(13px * var(--font-scale, 1));color:#c9d1d9;">
               <span id="${props.id}-current">—</span>
@@ -612,10 +350,9 @@ const WIDGETS = {
           
           const cur = (data.current || '').replace(/^v/, '');
           const lat = (data.latest || '').replace(/^v/, '');
-          // Strip -N suffixes for comparison (e.g. 2026.2.22-2 matches 2026.2.22)
           const curBase = cur.replace(/-\d+$/, '');
           const latBase = lat.replace(/-\d+$/, '');
-          const isUpToDate = cur === lat || curBase === latBase || cur.startsWith(latBase + '-');
+          const isUpToDate = cur === lat || curBase === latBase || cur.startsWith(lat) || curBase === lat || cur === latBase;
           
           if (!cur || cur === 'unknown') {
             currentEl.textContent = 'v' + lat;
@@ -656,7 +393,6 @@ const WIDGETS = {
     hasApiKey: false,
     properties: {
       title: 'OpenClaw',
-      server: 'local',
       openclawUrl: '',
       refreshInterval: 3600
     },
@@ -667,10 +403,10 @@ const WIDGETS = {
     generateHtml: (props) => `
       <div class="dash-card" id="widget-${props.id}" style="height:100%;">
         <div class="dash-card-head">
-          <span class="dash-card-title">${renderIcon('release')} ${props.title || 'OpenClaw'}</span>
+          <span class="dash-card-title">🦞 ${props.title || 'OpenClaw'}</span>
         </div>
         <div class="dash-card-body" style="display:flex;align-items:center;gap:10px;padding:8px 12px;">
-          <span class="lb-icon lb-icon-lg" data-icon="release">📦</span>
+          <span style="font-size:calc(20px * var(--font-scale, 1));">📦</span>
           <div>
             <div id="${props.id}-versions" style="display:flex;align-items:center;gap:6px;font-size:calc(13px * var(--font-scale, 1));color:#c9d1d9;">
               <span id="${props.id}-current">—</span>
@@ -683,39 +419,22 @@ const WIDGETS = {
       </div>`,
     generateJs: (props) => `
       async function update_${props.id.replace(/-/g, '_')}() {
-        const serverId = '${props.server || 'local'}';
         const currentEl = document.getElementById('${props.id}-current');
         const arrowEl = document.getElementById('${props.id}-arrow');
         const latestEl = document.getElementById('${props.id}-latest');
         const statusEl = document.getElementById('${props.id}-status');
         
         try {
-          let cur, lat;
+          const res = await fetch('/api/releases');
+          const data = await res.json();
+          if (data.status !== 'ok') throw new Error(data.message);
           
-          if (serverId === 'local') {
-            // Local: fetch from /api/releases
-            const res = await fetch('/api/releases');
-            const data = await res.json();
-            if (data.status !== 'ok') throw new Error(data.message);
-            cur = (data.current || '').replace(/^v/, '');
-            lat = (data.latest || '').replace(/^v/, '');
-          } else {
-            // Remote: fetch from server stats and get openclaw.version
-            const res = await fetch('/api/servers/' + serverId + '/stats');
-            const data = await res.json();
-            if (data.error) throw new Error(data.error);
-            if (!data.openclaw) throw new Error('OpenClaw not installed on remote');
-            cur = (data.openclaw.version || '').replace(/^v/, '');
-            // Fetch latest from GitHub
-            const ghRes = await fetch('https://api.github.com/repos/openclaw/openclaw/releases/latest');
-            const ghData = await ghRes.json();
-            lat = (ghData.tag_name || '').replace(/^v/, '');
-          }
-          
-          // Strip -N suffixes for comparison (e.g. 2026.2.22-2 matches 2026.2.22)
+          const cur = (data.current || '').replace(/^v/, '');
+          const lat = (data.latest || '').replace(/^v/, '');
+          // Normalize: strip -N suffix for comparison (e.g. 2026.2.22-2 base is 2026.2.22)
           const curBase = cur.replace(/-\\d+$/, '');
           const latBase = lat.replace(/-\\d+$/, '');
-          const isUpToDate = cur === lat || curBase === latBase || cur.startsWith(latBase + '-');
+          const isUpToDate = cur === lat || curBase === latBase || cur.startsWith(lat) || curBase === lat || cur === latBase;
           
           if (!cur || cur === 'unknown') {
             currentEl.textContent = 'v' + lat;
@@ -737,7 +456,7 @@ const WIDGETS = {
           }
         } catch (e) {
           currentEl.textContent = '—';
-          statusEl.textContent = e.message || 'Error';
+          statusEl.textContent = 'Error';
           console.error('OpenClaw Release widget error:', e);
         }
       }
@@ -767,10 +486,10 @@ const WIDGETS = {
     generateHtml: (props) => `
       <div class="dash-card" id="widget-${props.id}" style="height:100%;">
         <div class="dash-card-head">
-          <span class="dash-card-title">${renderIcon('release')} ${props.title || 'Release'}</span>
+          <span class="dash-card-title">📦 ${props.title || 'Release'}</span>
         </div>
         <div class="dash-card-body" style="display:flex;align-items:center;gap:10px;padding:8px 12px;">
-          <span class="lb-icon lb-icon-lg" data-icon="release">📦</span>
+          <span style="font-size:calc(20px * var(--font-scale, 1));">📦</span>
           <div>
             <div id="${props.id}-versions" style="display:flex;align-items:center;gap:6px;font-size:calc(13px * var(--font-scale, 1));color:#c9d1d9;">
               <span id="${props.id}-current">—</span>
@@ -844,7 +563,7 @@ const WIDGETS = {
     generateHtml: (props) => `
       <div class="dash-card" id="widget-${props.id}" style="height:100%;">
         <div class="dash-card-head">
-          <span class="dash-card-title">${renderIcon('clock')} ${props.title || 'Clock'}</span>
+          <span class="dash-card-title">🕐 ${props.title || 'Clock'}</span>
         </div>
         <div class="dash-card-body" style="display:flex;flex-direction:column;align-items:center;justify-content:center;">
           <div class="kpi-value" id="${props.id}-time">—</div>
@@ -871,7 +590,7 @@ const WIDGETS = {
   // ─────────────────────────────────────────────
 
   'activity-list': {
-
+    privacyWarning: true,
     name: 'Activity List',
     icon: '📋',
     category: 'large',
@@ -882,7 +601,6 @@ const WIDGETS = {
     apiKeyName: 'OPENCLAW_API',
     properties: {
       title: 'Today',
-      server: 'local',
       endpoint: '/api/today',
       maxItems: 10,
       refreshInterval: 60
@@ -895,7 +613,7 @@ const WIDGETS = {
     generateHtml: (props) => `
       <div class="dash-card" id="widget-${props.id}" style="height:100%;">
         <div class="dash-card-head">
-          <span class="dash-card-title">${renderIcon('activity')} ${props.title || 'Today'}</span>
+          <span class="dash-card-title">📋 ${props.title || 'Today'}</span>
           <span class="dash-card-badge" id="${props.id}-badge">—</span>
         </div>
         <div class="dash-card-body compact-list" id="${props.id}-list">
@@ -906,22 +624,13 @@ const WIDGETS = {
         </div>
       </div>`,
     generateJs: (props) => `
-      // Activity List Widget: ${props.id} — ${props.server === 'local' ? 'local' : 'remote: ' + props.server}
+      // Activity List Widget: ${props.id} (Today style)
       async function update_${props.id.replace(/-/g, '_')}() {
-        const serverId = '${props.server || 'local'}';
-        const list = document.getElementById('${props.id}-list');
-        const badge = document.getElementById('${props.id}-badge');
         try {
-          let data;
-          if (serverId === 'local') {
-            const res = await fetch('${props.endpoint || '/api/today'}');
-            data = await res.json();
-          } else {
-            const res = await fetch('/api/servers/' + serverId + '/stats');
-            const stats = await res.json();
-            if (stats.error) throw new Error(stats.error);
-            data = stats.openclaw?.today || { date: new Date().toISOString().split('T')[0], activities: [] };
-          }
+          const res = await fetch('${props.endpoint || '/api/today'}');
+          const data = await res.json();
+          const list = document.getElementById('${props.id}-list');
+          const badge = document.getElementById('${props.id}-badge');
 
           if (data.date && badge) {
             const d = new Date(data.date + 'T12:00:00');
@@ -937,565 +646,22 @@ const WIDGETS = {
           const fs = 'calc(12px * var(--font-scale, 1))';
           list.innerHTML = activities.slice(0, ${props.maxItems || 10}).map(a => {
             const icon = a.status === 'ok' ? '✓' : a.status === 'error' ? '❌' : '';
-            const text = _esc(a.text || '');
-            const source = _esc(a.source || '');
+            const text = (a.text || '').replace(/</g, '&lt;');
+            const source = (a.source || '').replace(/</g, '&lt;');
             return '<div style="display:flex;align-items:flex-start;justify-content:space-between;padding:4px 0;border-bottom:1px solid #30363d;font-size:' + fs + ';">' +
-              '<div style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + _esc(a.icon || '') + ' ' + text + '</div>' +
-              '<div style="flex-shrink:0;font-size:0.85em;color:#8b949e;margin-left:8px;">' + _esc(icon) + ' ' + source + '</div>' +
+              '<div style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + (a.icon || '') + ' ' + text + '</div>' +
+              '<div style="flex-shrink:0;font-size:0.85em;color:#8b949e;margin-left:8px;">' + icon + ' ' + source + '</div>' +
             '</div>';
           }).join('');
-        } catch (e) { 
-          console.error('Today widget error:', e);
-          list.innerHTML = '<div style="padding:8px;color:#f85149;font-size:calc(12px * var(--font-scale,1));">Error: ' + _esc(e.message) + '</div>';
-        }
+        } catch (e) { console.error('Today widget error:', e); }
       }
       update_${props.id.replace(/-/g, '_')}();
       setInterval(update_${props.id.replace(/-/g, '_')}, ${(props.refreshInterval || 60) * 1000});
     `
   },
 
-  'ai-usage': {
-
-    name: 'AI Usage',
-    icon: '🤖',
-    category: 'large',
-    description: 'Track usage across AI coding tools. Some providers may show errors on first load — see individual provider widgets for setup instructions.',
-    defaultWidth: 350,
-    defaultHeight: 280,
-    hasApiKey: false,
-    properties: {
-      title: 'AI Usage',
-      server: 'local',
-      providers: 'all',
-      hideUnauthenticated: true,
-      showPlan: true,
-      compactMode: false,
-      refreshInterval: 300
-    },
-    preview: `<div style="padding:4px;font-size:11px;color:#8b949e;">
-      <div>🟣 Claude — 25% session</div>
-      <div>🟢 Codex — 12% weekly</div>
-    </div>`,
-    generateHtml: (props) => `
-      <div class="dash-card" id="widget-${props.id}" style="height:100%;">
-        <div class="dash-card-head">
-          <span class="dash-card-title">${renderIcon('tokens')} ${props.title || 'AI Usage'}</span>
-          <span class="dash-card-badge" id="${props.id}-badge">—</span>
-        </div>
-        <div class="dash-card-body" id="${props.id}-content" style="display:flex;flex-direction:column;gap:8px;overflow-y:auto;">
-          <div style="color:var(--text-muted);font-size:11px;">Loading...</div>
-        </div>
-      </div>`,
-    generateJs: (props) => `
-      // AI Usage Widget: ${props.id} — ${props.server === 'local' ? 'local' : 'remote: ' + props.server}
-      async function update_${props.id.replace(/-/g, '_')}() {
-        const content = document.getElementById('${props.id}-content');
-        const badge = document.getElementById('${props.id}-badge');
-        try {
-          const serverId = '${props.server || 'local'}';
-          const providers = '${props.providers || 'all'}';
-          let json;
-          
-          if (serverId === 'local') {
-            // Local: fetch from /api/ai-usage
-            const url = providers === 'all' ? '/api/ai-usage' : '/api/ai-usage/' + providers;
-            const res = await fetch(url);
-            json = await res.json();
-          } else {
-            // Remote: fetch from server stats endpoint
-            const res = await fetch('/api/servers/' + serverId + '/stats');
-            const data = await res.json();
-            if (data.error) {
-              json = { status: 'error', message: data.error };
-            } else if (data.aiUsage && data.aiUsage.providers) {
-              json = { status: 'ok', providers: data.aiUsage.providers };
-            } else if (data.aiUsage === undefined) {
-              json = { status: 'error', message: 'AI usage not enabled on remote agent (enableAiUsage: false)' };
-            } else {
-              json = { status: 'error', message: 'No AI providers found on remote server' };
-            }
-          }
-          
-          if (json.status !== 'ok') {
-            content.innerHTML = '<div style="color:#f85149;font-size:12px;">' + _esc(json.message || 'Error') + '</div>';
-            badge.textContent = '!';
-            return;
-          }
-          
-          let allProviders = json.providers || [json];
-          const hideUnauth = ${props.hideUnauthenticated !== false};
-          const providerFilter = '${props.providers || 'all'}'.split(',').map(s => s.trim()).filter(Boolean);
-          
-          // Filter by selected providers
-          if (providerFilter.length && providerFilter[0] !== 'all') {
-            allProviders = allProviders.filter(p => providerFilter.includes(p.provider));
-          }
-          
-          // Hide unauthenticated/errored providers if option is set
-          if (hideUnauth) {
-            allProviders = allProviders.filter(p => !p.error);
-          }
-          
-          const validProviders = allProviders.filter(p => !p.error);
-          
-          badge.textContent = validProviders.length + (allProviders.length > validProviders.length ? '/' + allProviders.length : '');
-          
-          let html = '';
-          const compact = ${props.compactMode || false};
-          const showPlan = ${props.showPlan !== false};
-          
-          // Map provider IDs to icon IDs for theming
-          const providerIconMap = {
-            claude: 'claude-code', codex: 'codex-cli', copilot: 'github-copilot',
-            cursor: 'cursor', gemini: 'gemini-cli', amp: 'amp-code', factory: 'factory',
-            kimi: 'kimi-code', jetbrains: 'jetbrains-ai', minimax: 'minimax', zai: 'zai',
-            antigravity: 'antigravity'
-          };
-          
-          for (const prov of allProviders) {
-            const iconId = providerIconMap[prov.provider] || 'ai-usage';
-            const iconEmoji = _esc(prov.icon || '⚪');
-            const name = _esc(prov.name || prov.provider || 'Unknown');
-            
-            if (prov.error) {
-              html += '<div style="padding:6px 0;border-bottom:1px solid var(--border,#30363d);">';
-              html += '<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">';
-              html += '<span class="lb-icon" data-icon="' + iconId + '" style="font-size:16px;">' + iconEmoji + '</span>';
-              html += '<span style="font-weight:500;font-size:13px;">' + name + '</span>';
-              html += '</div>';
-              html += '<div style="color:#f85149;font-size:11px;padding-left:22px;">' + _esc(prov.error) + '</div>';
-              html += '</div>';
-              continue;
-            }
-            
-            html += '<div style="padding:6px 0;border-bottom:1px solid var(--border,#30363d);">';
-            html += '<div style="display:flex;align-items:center;gap:6px;margin-bottom:' + (compact ? '2px' : '6px') + ';">';
-            html += '<span class="lb-icon" data-icon="' + iconId + '" style="font-size:16px;">' + iconEmoji + '</span>';
-            html += '<span style="font-weight:500;font-size:13px;">' + name + '</span>';
-            if (showPlan && prov.plan) {
-              html += '<span style="font-size:10px;color:var(--text-muted);background:var(--bg-secondary);padding:1px 6px;border-radius:4px;margin-left:auto;">' + _esc(prov.plan) + '</span>';
-            }
-            html += '</div>';
-            
-            if (prov.metrics && prov.metrics.length) {
-              for (const m of prov.metrics) {
-                const label = _esc(m.label);
-                const pct = m.used != null ? Math.min(100, Math.max(0, m.used)) : 0;
-                const color = pct > 80 ? '#f85149' : pct > 50 ? '#d29922' : '#3fb950';
-                
-                if (m.format === 'dollars') {
-                  const val = m.remaining != null ? '$' + m.remaining.toFixed(2) : (m.used != null ? '$' + m.used.toFixed(2) + ' used' : '—');
-                  html += '<div style="display:flex;justify-content:space-between;font-size:11px;padding:2px 0 2px 22px;">';
-                  html += '<span style="color:var(--text-secondary);">' + label + '</span>';
-                  html += '<span style="color:' + (m.remaining != null ? '#3fb950' : 'var(--text-primary)') + ';">' + _esc(val) + '</span>';
-                  html += '</div>';
-                } else {
-                  // Percentage progress bar
-                  html += '<div style="padding:2px 0 2px 22px;">';
-                  if (!compact) {
-                    html += '<div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:2px;">';
-                    html += '<span style="color:var(--text-secondary);">' + label + '</span>';
-                    html += '<span style="color:' + color + ';">' + pct.toFixed(0) + '%</span>';
-                    html += '</div>';
-                  }
-                  html += '<div style="height:' + (compact ? '4px' : '6px') + ';background:var(--bg-tertiary,#21262d);border-radius:3px;overflow:hidden;">';
-                  html += '<div style="width:' + pct + '%;height:100%;background:' + color + ';transition:width 0.3s;"></div>';
-                  html += '</div>';
-                  if (compact) {
-                    html += '<div style="font-size:9px;color:var(--text-muted);margin-top:1px;">' + label + ' ' + pct.toFixed(0) + '%</div>';
-                  }
-                  html += '</div>';
-                }
-              }
-            }
-            html += '</div>';
-          }
-          
-          content.innerHTML = html || '<div style="color:var(--text-muted);font-size:11px;">No providers configured</div>';
-        } catch (e) {
-          console.error('AI Usage widget error:', e);
-          content.innerHTML = '<div style="color:#f85149;font-size:12px;">Error loading usage data</div>';
-          badge.textContent = '!';
-        }
-      }
-      update_${props.id.replace(/-/g, '_')}();
-      setInterval(update_${props.id.replace(/-/g, '_')}, ${(props.refreshInterval || 300) * 1000});
-    `
-  },
-
-  'claude-code': {
-
-    name: 'Claude Code',
-    icon: '🟣',
-    category: 'small',
-    description: 'Track Claude Code usage (session, weekly, Opus limits). Setup: run `claude` once to authenticate. May show 429 on first load — cached after success.',
-    defaultWidth: 280,
-    defaultHeight: 180,
-    hasApiKey: false,
-    properties: {
-      title: 'Claude',
-      showPlan: true,
-      refreshInterval: 300
-    },
-    preview: `<div style="padding:4px;font-size:11px;color:#8b949e;">
-      <div>Session: 25%</div>
-      <div>Weekly: 12%</div>
-    </div>`,
-    generateHtml: (props) => `
-      <div class="dash-card" id="widget-${props.id}" style="height:100%;">
-        <div class="dash-card-head">
-          <span class="dash-card-title">🟣 ${props.title || 'Claude'}</span>
-          <span class="dash-card-badge" id="${props.id}-badge">—</span>
-        </div>
-        <div class="dash-card-body" id="${props.id}-content" style="display:flex;flex-direction:column;gap:4px;overflow-y:auto;">
-          <div style="color:var(--text-muted);font-size:11px;">Loading...</div>
-        </div>
-      </div>`,
-    generateJs: (props) => `
-      async function update_${props.id.replace(/-/g, '_')}() {
-        const content = document.getElementById('${props.id}-content');
-        const badge = document.getElementById('${props.id}-badge');
-        try {
-          const res = await fetch('/api/ai-usage/claude');
-          const data = await res.json();
-          if (data.error) {
-            content.innerHTML = '<div style="color:#f85149;font-size:11px;">' + _esc(data.error) + '</div>';
-            badge.textContent = '!';
-            return;
-          }
-          let html = '';
-          const showPlan = ${props.showPlan !== false};
-          if (showPlan && data.plan) {
-            badge.textContent = _esc(data.plan);
-          }
-          for (const m of (data.metrics || [])) {
-            const pct = m.used != null ? Math.min(100, Math.max(0, m.used)) : 0;
-            const color = pct > 80 ? '#f85149' : pct > 50 ? '#d29922' : '#3fb950';
-            if (m.format === 'dollars') {
-              const val = m.used != null ? '$' + m.used.toFixed(2) : '—';
-              html += '<div style="display:flex;justify-content:space-between;font-size:11px;padding:2px 0;">';
-              html += '<span>' + _esc(m.label) + '</span><span style="color:#3fb950;">' + _esc(val) + '</span></div>';
-            } else {
-              html += '<div style="margin-bottom:4px;">';
-              html += '<div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:2px;">';
-              html += '<span>' + _esc(m.label) + '</span><span style="color:' + color + ';">' + pct.toFixed(0) + '%</span></div>';
-              html += '<div style="height:6px;background:var(--bg-tertiary,#21262d);border-radius:3px;overflow:hidden;">';
-              html += '<div style="width:' + pct + '%;height:100%;background:' + color + ';"></div></div></div>';
-            }
-          }
-          content.innerHTML = html || '<div style="color:var(--text-muted);font-size:11px;">No data</div>';
-        } catch (e) {
-          content.innerHTML = '<div style="color:#f85149;font-size:11px;">Error</div>';
-          badge.textContent = '!';
-        }
-      }
-      update_${props.id.replace(/-/g, '_')}();
-      setInterval(update_${props.id.replace(/-/g, '_')}, ${(props.refreshInterval || 300) * 1000});
-    `
-  },
-
-  'codex-cli': {
-
-    name: 'Codex CLI',
-    icon: '🟢',
-    category: 'small',
-    description: 'Track Codex CLI usage (session, weekly, code reviews). Setup: run `codex` once to authenticate.',
-    defaultWidth: 280,
-    defaultHeight: 180,
-    hasApiKey: false,
-    properties: {
-      title: 'Codex',
-      showPlan: true,
-      refreshInterval: 300
-    },
-    preview: `<div style="padding:4px;font-size:11px;color:#8b949e;">
-      <div>Session: 5%</div>
-      <div>Weekly: 10%</div>
-    </div>`,
-    generateHtml: (props) => `
-      <div class="dash-card" id="widget-${props.id}" style="height:100%;">
-        <div class="dash-card-head">
-          <span class="dash-card-title">🟢 ${props.title || 'Codex'}</span>
-          <span class="dash-card-badge" id="${props.id}-badge">—</span>
-        </div>
-        <div class="dash-card-body" id="${props.id}-content" style="display:flex;flex-direction:column;gap:4px;overflow-y:auto;">
-          <div style="color:var(--text-muted);font-size:11px;">Loading...</div>
-        </div>
-      </div>`,
-    generateJs: (props) => `
-      async function update_${props.id.replace(/-/g, '_')}() {
-        const content = document.getElementById('${props.id}-content');
-        const badge = document.getElementById('${props.id}-badge');
-        try {
-          const res = await fetch('/api/ai-usage/codex');
-          const data = await res.json();
-          if (data.error) {
-            content.innerHTML = '<div style="color:#f85149;font-size:11px;">' + _esc(data.error) + '</div>';
-            badge.textContent = '!';
-            return;
-          }
-          let html = '';
-          const showPlan = ${props.showPlan !== false};
-          if (showPlan && data.plan) {
-            badge.textContent = _esc(data.plan);
-          }
-          for (const m of (data.metrics || [])) {
-            const pct = m.used != null ? Math.min(100, Math.max(0, m.used)) : 0;
-            const color = pct > 80 ? '#f85149' : pct > 50 ? '#d29922' : '#3fb950';
-            if (m.format === 'dollars') {
-              const val = m.remaining != null ? '$' + m.remaining.toFixed(2) : '—';
-              html += '<div style="display:flex;justify-content:space-between;font-size:11px;padding:2px 0;">';
-              html += '<span>' + _esc(m.label) + '</span><span style="color:#3fb950;">' + _esc(val) + '</span></div>';
-            } else {
-              html += '<div style="margin-bottom:4px;">';
-              html += '<div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:2px;">';
-              html += '<span>' + _esc(m.label) + '</span><span style="color:' + color + ';">' + pct.toFixed(0) + '%</span></div>';
-              html += '<div style="height:6px;background:var(--bg-tertiary,#21262d);border-radius:3px;overflow:hidden;">';
-              html += '<div style="width:' + pct + '%;height:100%;background:' + color + ';"></div></div></div>';
-            }
-          }
-          content.innerHTML = html || '<div style="color:var(--text-muted);font-size:11px;">No data</div>';
-        } catch (e) {
-          content.innerHTML = '<div style="color:#f85149;font-size:11px;">Error</div>';
-          badge.textContent = '!';
-        }
-      }
-      update_${props.id.replace(/-/g, '_')}();
-      setInterval(update_${props.id.replace(/-/g, '_')}, ${(props.refreshInterval || 300) * 1000});
-    `
-  },
-
-  'github-copilot': {
-    name: 'GitHub Copilot',
-    icon: '⚫',
-    category: 'small',
-    description: 'Track GitHub Copilot usage. Setup: run `gh auth login` first.',
-    defaultWidth: 280,
-    defaultHeight: 180,
-    hasApiKey: false,
-    properties: { title: 'Copilot', showPlan: true, refreshInterval: 300 },
-    preview: `<div style="padding:4px;font-size:11px;color:#8b949e;"><div>Premium: 20%</div><div>Chat: 5%</div></div>`,
-    generateHtml: (props) => `
-      <div class="dash-card" id="widget-${props.id}" style="height:100%;">
-        <div class="dash-card-head"><span class="dash-card-title">⚫ ${props.title || 'Copilot'}</span><span class="dash-card-badge" id="${props.id}-badge">—</span></div>
-        <div class="dash-card-body" id="${props.id}-content" style="display:flex;flex-direction:column;gap:4px;overflow-y:auto;"><div style="color:var(--text-muted);font-size:11px;">Loading...</div></div>
-      </div>`,
-    generateJs: (props) => `
-      async function update_${props.id.replace(/-/g, '_')}() {
-        const content = document.getElementById('${props.id}-content');
-        const badge = document.getElementById('${props.id}-badge');
-        try {
-          const res = await fetch('/api/ai-usage/copilot');
-          const data = await res.json();
-          if (data.error) { content.innerHTML = '<div style="color:#f85149;font-size:11px;">' + _esc(data.error) + '</div>'; badge.textContent = '!'; return; }
-          let html = '';
-          if (${props.showPlan !== false} && data.plan) badge.textContent = _esc(data.plan);
-          for (const m of (data.metrics || [])) {
-            const pct = m.used != null ? Math.min(100, Math.max(0, m.used)) : 0;
-            const color = pct > 80 ? '#f85149' : pct > 50 ? '#d29922' : '#3fb950';
-            html += '<div style="margin-bottom:4px;"><div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:2px;"><span>' + _esc(m.label) + '</span><span style="color:' + color + ';">' + pct.toFixed(0) + '%</span></div><div style="height:6px;background:var(--bg-tertiary,#21262d);border-radius:3px;overflow:hidden;"><div style="width:' + pct + '%;height:100%;background:' + color + ';"></div></div></div>';
-          }
-          content.innerHTML = html || '<div style="color:var(--text-muted);font-size:11px;">No data</div>';
-        } catch (e) { content.innerHTML = '<div style="color:#f85149;font-size:11px;">Error</div>'; badge.textContent = '!'; }
-      }
-      update_${props.id.replace(/-/g, '_')}();
-      setInterval(update_${props.id.replace(/-/g, '_')}, ${(props.refreshInterval || 300) * 1000});
-    `
-  },
-
-  'cursor': {
-    name: 'Cursor',
-    icon: '🔵',
-    category: 'small',
-    description: 'Track Cursor IDE usage. Setup: just use Cursor normally — reads from IDE database.',
-    defaultWidth: 280,
-    defaultHeight: 180,
-    hasApiKey: false,
-    properties: { title: 'Cursor', showPlan: true, refreshInterval: 300 },
-    preview: `<div style="padding:4px;font-size:11px;color:#8b949e;"><div>Total: 15%</div><div>API: 46%</div></div>`,
-    generateHtml: (props) => `
-      <div class="dash-card" id="widget-${props.id}" style="height:100%;">
-        <div class="dash-card-head"><span class="dash-card-title">🔵 ${props.title || 'Cursor'}</span><span class="dash-card-badge" id="${props.id}-badge">—</span></div>
-        <div class="dash-card-body" id="${props.id}-content" style="display:flex;flex-direction:column;gap:4px;overflow-y:auto;"><div style="color:var(--text-muted);font-size:11px;">Loading...</div></div>
-      </div>`,
-    generateJs: (props) => `
-      async function update_${props.id.replace(/-/g, '_')}() {
-        const content = document.getElementById('${props.id}-content');
-        const badge = document.getElementById('${props.id}-badge');
-        try {
-          const res = await fetch('/api/ai-usage/cursor');
-          const data = await res.json();
-          if (data.error) { content.innerHTML = '<div style="color:#f85149;font-size:11px;">' + _esc(data.error) + '</div>'; badge.textContent = '!'; return; }
-          let html = '';
-          if (${props.showPlan !== false} && data.plan) badge.textContent = _esc(data.plan);
-          for (const m of (data.metrics || [])) {
-            const pct = m.used != null ? Math.min(100, Math.max(0, m.used)) : 0;
-            const color = pct > 80 ? '#f85149' : pct > 50 ? '#d29922' : '#3fb950';
-            html += '<div style="margin-bottom:4px;"><div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:2px;"><span>' + _esc(m.label) + '</span><span style="color:' + color + ';">' + pct.toFixed(0) + '%</span></div><div style="height:6px;background:var(--bg-tertiary,#21262d);border-radius:3px;overflow:hidden;"><div style="width:' + pct + '%;height:100%;background:' + color + ';"></div></div></div>';
-          }
-          content.innerHTML = html || '<div style="color:var(--text-muted);font-size:11px;">No data</div>';
-        } catch (e) { content.innerHTML = '<div style="color:#f85149;font-size:11px;">Error</div>'; badge.textContent = '!'; }
-      }
-      update_${props.id.replace(/-/g, '_')}();
-      setInterval(update_${props.id.replace(/-/g, '_')}, ${(props.refreshInterval || 300) * 1000});
-    `
-  },
-
-  'gemini-cli': {
-    name: 'Gemini CLI',
-    icon: '🔷',
-    category: 'small',
-    description: 'Track Gemini CLI usage. Setup: run `gemini` once to authenticate via browser.',
-    defaultWidth: 280,
-    defaultHeight: 180,
-    hasApiKey: false,
-    properties: { title: 'Gemini', showPlan: true, refreshInterval: 300 },
-    preview: `<div style="padding:4px;font-size:11px;color:#8b949e;"><div>Pro: 10%</div><div>Flash: 5%</div></div>`,
-    generateHtml: (props) => `
-      <div class="dash-card" id="widget-${props.id}" style="height:100%;">
-        <div class="dash-card-head"><span class="dash-card-title">🔷 ${props.title || 'Gemini'}</span><span class="dash-card-badge" id="${props.id}-badge">—</span></div>
-        <div class="dash-card-body" id="${props.id}-content" style="display:flex;flex-direction:column;gap:4px;overflow-y:auto;"><div style="color:var(--text-muted);font-size:11px;">Loading...</div></div>
-      </div>`,
-    generateJs: (props) => `
-      async function update_${props.id.replace(/-/g, '_')}() {
-        const content = document.getElementById('${props.id}-content');
-        const badge = document.getElementById('${props.id}-badge');
-        try {
-          const res = await fetch('/api/ai-usage/gemini');
-          const data = await res.json();
-          if (data.error) { content.innerHTML = '<div style="color:#f85149;font-size:11px;">' + _esc(data.error) + '</div>'; badge.textContent = '!'; return; }
-          let html = '';
-          if (${props.showPlan !== false} && data.plan) badge.textContent = _esc(data.plan);
-          for (const m of (data.metrics || [])) {
-            const pct = m.used != null ? Math.min(100, Math.max(0, m.used)) : 0;
-            const color = pct > 80 ? '#f85149' : pct > 50 ? '#d29922' : '#3fb950';
-            html += '<div style="margin-bottom:4px;"><div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:2px;"><span>' + _esc(m.label) + '</span><span style="color:' + color + ';">' + pct.toFixed(0) + '%</span></div><div style="height:6px;background:var(--bg-tertiary,#21262d);border-radius:3px;overflow:hidden;"><div style="width:' + pct + '%;height:100%;background:' + color + ';"></div></div></div>';
-          }
-          content.innerHTML = html || '<div style="color:var(--text-muted);font-size:11px;">No data</div>';
-        } catch (e) { content.innerHTML = '<div style="color:#f85149;font-size:11px;">Error</div>'; badge.textContent = '!'; }
-      }
-      update_${props.id.replace(/-/g, '_')}();
-      setInterval(update_${props.id.replace(/-/g, '_')}, ${(props.refreshInterval || 300) * 1000});
-    `
-  },
-
-  'amp-code': {
-    name: 'Amp Code',
-    icon: '⚡',
-    category: 'small',
-    description: 'Track Amp Code usage. Setup: run `amp` once to authenticate.',
-    defaultWidth: 280,
-    defaultHeight: 180,
-    hasApiKey: false,
-    properties: { title: 'Amp', showPlan: true, refreshInterval: 300 },
-    preview: `<div style="padding:4px;font-size:11px;color:#8b949e;"><div>Free: 30%</div><div>Credits: $5.00</div></div>`,
-    generateHtml: (props) => `
-      <div class="dash-card" id="widget-${props.id}" style="height:100%;">
-        <div class="dash-card-head"><span class="dash-card-title">⚡ ${props.title || 'Amp'}</span><span class="dash-card-badge" id="${props.id}-badge">—</span></div>
-        <div class="dash-card-body" id="${props.id}-content" style="display:flex;flex-direction:column;gap:4px;overflow-y:auto;"><div style="color:var(--text-muted);font-size:11px;">Loading...</div></div>
-      </div>`,
-    generateJs: (props) => `
-      async function update_${props.id.replace(/-/g, '_')}() {
-        const content = document.getElementById('${props.id}-content');
-        const badge = document.getElementById('${props.id}-badge');
-        try {
-          const res = await fetch('/api/ai-usage/amp');
-          const data = await res.json();
-          if (data.error) { content.innerHTML = '<div style="color:#f85149;font-size:11px;">' + _esc(data.error) + '</div>'; badge.textContent = '!'; return; }
-          let html = '';
-          if (${props.showPlan !== false} && data.plan) badge.textContent = _esc(data.plan);
-          for (const m of (data.metrics || [])) {
-            if (m.format === 'dollars') {
-              const val = m.remaining != null ? '$' + m.remaining.toFixed(2) : '—';
-              html += '<div style="display:flex;justify-content:space-between;font-size:11px;padding:2px 0;"><span>' + _esc(m.label) + '</span><span style="color:#3fb950;">' + _esc(val) + '</span></div>';
-            } else {
-              const pct = m.used != null ? Math.min(100, Math.max(0, m.used)) : 0;
-              const color = pct > 80 ? '#f85149' : pct > 50 ? '#d29922' : '#3fb950';
-              html += '<div style="margin-bottom:4px;"><div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:2px;"><span>' + _esc(m.label) + '</span><span style="color:' + color + ';">' + pct.toFixed(0) + '%</span></div><div style="height:6px;background:var(--bg-tertiary,#21262d);border-radius:3px;overflow:hidden;"><div style="width:' + pct + '%;height:100%;background:' + color + ';"></div></div></div>';
-            }
-          }
-          content.innerHTML = html || '<div style="color:var(--text-muted);font-size:11px;">No data</div>';
-        } catch (e) { content.innerHTML = '<div style="color:#f85149;font-size:11px;">Error</div>'; badge.textContent = '!'; }
-      }
-      update_${props.id.replace(/-/g, '_')}();
-      setInterval(update_${props.id.replace(/-/g, '_')}, ${(props.refreshInterval || 300) * 1000});
-    `
-  },
-
-  'factory': {
-    name: 'Factory',
-    icon: '🏭',
-    category: 'small',
-    description: 'Track Factory (Droid) usage. Setup: run `factory` once to authenticate.',
-    defaultWidth: 280, defaultHeight: 180, hasApiKey: false,
-    properties: { title: 'Factory', showPlan: true, refreshInterval: 300 },
-    preview: `<div style="padding:4px;font-size:11px;color:#8b949e;"><div>Standard: 25%</div></div>`,
-    generateHtml: (props) => `<div class="dash-card" id="widget-${props.id}" style="height:100%;"><div class="dash-card-head"><span class="dash-card-title">🏭 ${props.title || 'Factory'}</span><span class="dash-card-badge" id="${props.id}-badge">—</span></div><div class="dash-card-body" id="${props.id}-content" style="display:flex;flex-direction:column;gap:4px;overflow-y:auto;"><div style="color:var(--text-muted);font-size:11px;">Loading...</div></div></div>`,
-    generateJs: (props) => `async function update_${props.id.replace(/-/g, '_')}(){const content=document.getElementById('${props.id}-content');const badge=document.getElementById('${props.id}-badge');try{const res=await fetch('/api/ai-usage/factory');const data=await res.json();if(data.error){content.innerHTML='<div style="color:#f85149;font-size:11px;">'+_esc(data.error)+'</div>';badge.textContent='!';return;}let html='';if(${props.showPlan !== false}&&data.plan)badge.textContent=_esc(data.plan);for(const m of(data.metrics||[])){const pct=m.used!=null?Math.min(100,Math.max(0,m.used)):0;const color=pct>80?'#f85149':pct>50?'#d29922':'#3fb950';html+='<div style="margin-bottom:4px;"><div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:2px;"><span>'+_esc(m.label)+'</span><span style="color:'+color+';">'+pct.toFixed(0)+'%</span></div><div style="height:6px;background:var(--bg-tertiary,#21262d);border-radius:3px;overflow:hidden;"><div style="width:'+pct+'%;height:100%;background:'+color+';"></div></div></div>';}content.innerHTML=html||'<div style="color:var(--text-muted);font-size:11px;">No data</div>';}catch(e){content.innerHTML='<div style="color:#f85149;font-size:11px;">Error</div>';badge.textContent='!';}}update_${props.id.replace(/-/g, '_')}();setInterval(update_${props.id.replace(/-/g, '_')},${(props.refreshInterval||300)*1000});`
-  },
-
-  'kimi-code': {
-    name: 'Kimi Code',
-    icon: '🌙',
-    category: 'small',
-    description: 'Track Kimi Code usage. Setup: run `kimi` once to authenticate.',
-    defaultWidth: 280, defaultHeight: 180, hasApiKey: false,
-    properties: { title: 'Kimi', showPlan: true, refreshInterval: 300 },
-    preview: `<div style="padding:4px;font-size:11px;color:#8b949e;"><div>Session: 26%</div></div>`,
-    generateHtml: (props) => `<div class="dash-card" id="widget-${props.id}" style="height:100%;"><div class="dash-card-head"><span class="dash-card-title">🌙 ${props.title || 'Kimi'}</span><span class="dash-card-badge" id="${props.id}-badge">—</span></div><div class="dash-card-body" id="${props.id}-content" style="display:flex;flex-direction:column;gap:4px;overflow-y:auto;"><div style="color:var(--text-muted);font-size:11px;">Loading...</div></div></div>`,
-    generateJs: (props) => `async function update_${props.id.replace(/-/g, '_')}(){const content=document.getElementById('${props.id}-content');const badge=document.getElementById('${props.id}-badge');try{const res=await fetch('/api/ai-usage/kimi');const data=await res.json();if(data.error){content.innerHTML='<div style="color:#f85149;font-size:11px;">'+_esc(data.error)+'</div>';badge.textContent='!';return;}let html='';if(${props.showPlan !== false}&&data.plan)badge.textContent=_esc(data.plan);for(const m of(data.metrics||[])){const pct=m.used!=null?Math.min(100,Math.max(0,m.used)):0;const color=pct>80?'#f85149':pct>50?'#d29922':'#3fb950';html+='<div style="margin-bottom:4px;"><div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:2px;"><span>'+_esc(m.label)+'</span><span style="color:'+color+';">'+pct.toFixed(0)+'%</span></div><div style="height:6px;background:var(--bg-tertiary,#21262d);border-radius:3px;overflow:hidden;"><div style="width:'+pct+'%;height:100%;background:'+color+';"></div></div></div>';}content.innerHTML=html||'<div style="color:var(--text-muted);font-size:11px;">No data</div>';}catch(e){content.innerHTML='<div style="color:#f85149;font-size:11px;">Error</div>';badge.textContent='!';}}update_${props.id.replace(/-/g, '_')}();setInterval(update_${props.id.replace(/-/g, '_')},${(props.refreshInterval||300)*1000});`
-  },
-
-  'jetbrains-ai': {
-    name: 'JetBrains AI',
-    icon: '🧠',
-    category: 'small',
-    description: 'Track JetBrains AI Assistant usage. Setup: sign into AI Assistant in any JetBrains IDE.',
-    defaultWidth: 280, defaultHeight: 180, hasApiKey: false,
-    properties: { title: 'JetBrains', showPlan: true, refreshInterval: 300 },
-    preview: `<div style="padding:4px;font-size:11px;color:#8b949e;"><div>Quota: 15%</div></div>`,
-    generateHtml: (props) => `<div class="dash-card" id="widget-${props.id}" style="height:100%;"><div class="dash-card-head"><span class="dash-card-title">🧠 ${props.title || 'JetBrains'}</span><span class="dash-card-badge" id="${props.id}-badge">—</span></div><div class="dash-card-body" id="${props.id}-content" style="display:flex;flex-direction:column;gap:4px;overflow-y:auto;"><div style="color:var(--text-muted);font-size:11px;">Loading...</div></div></div>`,
-    generateJs: (props) => `async function update_${props.id.replace(/-/g, '_')}(){const content=document.getElementById('${props.id}-content');const badge=document.getElementById('${props.id}-badge');try{const res=await fetch('/api/ai-usage/jetbrains');const data=await res.json();if(data.error){content.innerHTML='<div style="color:#f85149;font-size:11px;">'+_esc(data.error)+'</div>';badge.textContent='!';return;}let html='';if(${props.showPlan !== false}&&data.plan)badge.textContent=_esc(data.plan);for(const m of(data.metrics||[])){const pct=m.used!=null?Math.min(100,Math.max(0,m.used)):0;const color=pct>80?'#f85149':pct>50?'#d29922':'#3fb950';html+='<div style="margin-bottom:4px;"><div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:2px;"><span>'+_esc(m.label)+'</span><span style="color:'+color+';">'+pct.toFixed(0)+'%</span></div><div style="height:6px;background:var(--bg-tertiary,#21262d);border-radius:3px;overflow:hidden;"><div style="width:'+pct+'%;height:100%;background:'+color+';"></div></div></div>';}content.innerHTML=html||'<div style="color:var(--text-muted);font-size:11px;">No data</div>';}catch(e){content.innerHTML='<div style="color:#f85149;font-size:11px;">Error</div>';badge.textContent='!';}}update_${props.id.replace(/-/g, '_')}();setInterval(update_${props.id.replace(/-/g, '_')},${(props.refreshInterval||300)*1000});`
-  },
-
-  'minimax': {
-    name: 'MiniMax',
-    icon: '🔶',
-    category: 'small',
-    description: 'Track MiniMax Coding usage. Requires MINIMAX_API_KEY env var.',
-    defaultWidth: 280, defaultHeight: 180, hasApiKey: false,
-    properties: { title: 'MiniMax', showPlan: true, refreshInterval: 300 },
-    preview: `<div style="padding:4px;font-size:11px;color:#8b949e;"><div>Session: 30%</div></div>`,
-    generateHtml: (props) => `<div class="dash-card" id="widget-${props.id}" style="height:100%;"><div class="dash-card-head"><span class="dash-card-title">🔶 ${props.title || 'MiniMax'}</span><span class="dash-card-badge" id="${props.id}-badge">—</span></div><div class="dash-card-body" id="${props.id}-content" style="display:flex;flex-direction:column;gap:4px;overflow-y:auto;"><div style="color:var(--text-muted);font-size:11px;">Loading...</div></div></div>`,
-    generateJs: (props) => `async function update_${props.id.replace(/-/g, '_')}(){const content=document.getElementById('${props.id}-content');const badge=document.getElementById('${props.id}-badge');try{const res=await fetch('/api/ai-usage/minimax');const data=await res.json();if(data.error){content.innerHTML='<div style="color:#f85149;font-size:11px;">'+_esc(data.error)+'</div>';badge.textContent='!';return;}let html='';if(${props.showPlan !== false}&&data.plan)badge.textContent=_esc(data.plan);for(const m of(data.metrics||[])){const pct=m.used!=null?Math.min(100,Math.max(0,m.used)):0;const color=pct>80?'#f85149':pct>50?'#d29922':'#3fb950';html+='<div style="margin-bottom:4px;"><div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:2px;"><span>'+_esc(m.label)+'</span><span style="color:'+color+';">'+pct.toFixed(0)+'%</span></div><div style="height:6px;background:var(--bg-tertiary,#21262d);border-radius:3px;overflow:hidden;"><div style="width:'+pct+'%;height:100%;background:'+color+';"></div></div></div>';}content.innerHTML=html||'<div style="color:var(--text-muted);font-size:11px;">No data</div>';}catch(e){content.innerHTML='<div style="color:#f85149;font-size:11px;">Error</div>';badge.textContent='!';}}update_${props.id.replace(/-/g, '_')}();setInterval(update_${props.id.replace(/-/g, '_')},${(props.refreshInterval||300)*1000});`
-  },
-
-  'zai': {
-    name: 'Z.ai',
-    icon: '🇿',
-    category: 'small',
-    description: 'Track Z.ai (GLM Coding) usage. Requires ZAI_API_KEY env var.',
-    defaultWidth: 280, defaultHeight: 180, hasApiKey: false,
-    properties: { title: 'Z.ai', showPlan: true, refreshInterval: 300 },
-    preview: `<div style="padding:4px;font-size:11px;color:#8b949e;"><div>Session: 15%</div><div>Weekly: 45%</div></div>`,
-    generateHtml: (props) => `<div class="dash-card" id="widget-${props.id}" style="height:100%;"><div class="dash-card-head"><span class="dash-card-title">🇿 ${props.title || 'Z.ai'}</span><span class="dash-card-badge" id="${props.id}-badge">—</span></div><div class="dash-card-body" id="${props.id}-content" style="display:flex;flex-direction:column;gap:4px;overflow-y:auto;"><div style="color:var(--text-muted);font-size:11px;">Loading...</div></div></div>`,
-    generateJs: (props) => `async function update_${props.id.replace(/-/g, '_')}(){const content=document.getElementById('${props.id}-content');const badge=document.getElementById('${props.id}-badge');try{const res=await fetch('/api/ai-usage/zai');const data=await res.json();if(data.error){content.innerHTML='<div style="color:#f85149;font-size:11px;">'+_esc(data.error)+'</div>';badge.textContent='!';return;}let html='';if(${props.showPlan !== false}&&data.plan)badge.textContent=_esc(data.plan);for(const m of(data.metrics||[])){const pct=m.used!=null?Math.min(100,Math.max(0,m.used)):0;const color=pct>80?'#f85149':pct>50?'#d29922':'#3fb950';html+='<div style="margin-bottom:4px;"><div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:2px;"><span>'+_esc(m.label)+'</span><span style="color:'+color+';">'+pct.toFixed(0)+'%</span></div><div style="height:6px;background:var(--bg-tertiary,#21262d);border-radius:3px;overflow:hidden;"><div style="width:'+pct+'%;height:100%;background:'+color+';"></div></div></div>';}content.innerHTML=html||'<div style="color:var(--text-muted);font-size:11px;">No data</div>';}catch(e){content.innerHTML='<div style="color:#f85149;font-size:11px;">Error</div>';badge.textContent='!';}}update_${props.id.replace(/-/g, '_')}();setInterval(update_${props.id.replace(/-/g, '_')},${(props.refreshInterval||300)*1000});`
-  },
-
-  'antigravity-local': {
-    name: 'Antigravity',
-    icon: '🪐',
-    category: 'small',
-    description: 'Track Google Antigravity usage (Gemini 3, Claude via Google). Requires antigravity-usage login.',
-    defaultWidth: 280, defaultHeight: 200, hasApiKey: false,
-    properties: { title: 'Antigravity', showPlan: true, refreshInterval: 300 },
-    preview: `<div style="padding:4px;font-size:11px;color:#8b949e;"><div>Gemini 3 Pro: 25%</div><div>Claude Sonnet: 40%</div></div>`,
-    generateHtml: (props) => `<div class="dash-card" id="widget-${props.id}" style="height:100%;"><div class="dash-card-head"><span class="dash-card-title">🪐 ${props.title || 'Antigravity'}</span><span class="dash-card-badge" id="${props.id}-badge">—</span></div><div class="dash-card-body" id="${props.id}-content" style="display:flex;flex-direction:column;gap:4px;overflow-y:auto;"><div style="color:var(--text-muted);font-size:11px;">Loading...</div></div></div>`,
-    generateJs: (props) => `async function update_${props.id.replace(/-/g, '_')}(){const content=document.getElementById('${props.id}-content');const badge=document.getElementById('${props.id}-badge');try{const res=await fetch('/api/ai-usage/antigravity');const data=await res.json();if(data.error){content.innerHTML='<div style="color:#f85149;font-size:11px;">'+_esc(data.error)+'</div>';badge.textContent='!';return;}let html='';if(${props.showPlan !== false}&&data.plan)badge.textContent=_esc(data.plan);for(const m of(data.metrics||[])){const pct=m.used!=null?Math.min(100,Math.max(0,m.used)):0;const color=pct>80?'#f85149':pct>50?'#d29922':'#3fb950';html+='<div style="margin-bottom:4px;"><div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:2px;"><span>'+_esc(m.label)+'</span><span style="color:'+color+';">'+pct.toFixed(0)+'%</span></div><div style="height:6px;background:var(--bg-tertiary,#21262d);border-radius:3px;overflow:hidden;"><div style="width:'+pct+'%;height:100%;background:'+color+';"></div></div></div>';}content.innerHTML=html||'<div style="color:var(--text-muted);font-size:11px;">No data</div>';}catch(e){content.innerHTML='<div style="color:#f85149;font-size:11px;">Error</div>';badge.textContent='!';}}update_${props.id.replace(/-/g, '_')}();setInterval(update_${props.id.replace(/-/g, '_')},${(props.refreshInterval||300)*1000});`
-  },
-
   'cron-jobs': {
-
+    privacyWarning: true,
     name: 'Cron Jobs',
     icon: '⏰',
     category: 'large',
@@ -1505,7 +671,6 @@ const WIDGETS = {
     hasApiKey: false,
     properties: {
       title: 'Cron',
-      server: 'local',
       endpoint: '/api/cron',
       columns: 1,
       refreshInterval: 30
@@ -1517,7 +682,7 @@ const WIDGETS = {
     generateHtml: (props) => `
       <div class="dash-card" id="widget-${props.id}" style="height:100%;">
         <div class="dash-card-head">
-          <span class="dash-card-title">${renderIcon('cron')} ${props.title || 'Cron'}</span>
+          <span class="dash-card-title">⏰ ${props.title || 'Cron'}</span>
           <span class="dash-card-badge" id="${props.id}-badge">—</span>
         </div>
         <div class="dash-card-body" id="${props.id}-list" style="display:grid;grid-template-columns:repeat(${props.columns || 1}, 1fr);gap:0 12px;align-content:start;">
@@ -1527,24 +692,14 @@ const WIDGETS = {
         </div>
       </div>`,
     generateJs: (props) => `
-      // Cron Jobs Widget: ${props.id} — ${props.server === 'local' ? 'local' : 'remote: ' + props.server}
+      // Cron Jobs Widget: ${props.id}
       async function update_${props.id.replace(/-/g, '_')}() {
-        const serverId = '${props.server || 'local'}';
-        const list = document.getElementById('${props.id}-list');
-        const badge = document.getElementById('${props.id}-badge');
         try {
-          let jobs;
-          if (serverId === 'local') {
-            const res = await fetch('${props.endpoint || '/api/cron'}');
-            const json = await res.json();
-            jobs = json.jobs || [];
-          } else {
-            const res = await fetch('/api/servers/' + serverId + '/stats');
-            const data = await res.json();
-            if (data.error) throw new Error(data.error);
-            if (!data.openclaw?.cron) throw new Error('Cron data not available');
-            jobs = data.openclaw.cron.jobs || [];
-          }
+          const res = await fetch('${props.endpoint || '/api/cron'}');
+          const json = await res.json();
+          const jobs = json.jobs || [];
+          const list = document.getElementById('${props.id}-list');
+          const badge = document.getElementById('${props.id}-badge');
           if (!jobs.length) {
             list.innerHTML = '<div class="cron-item"><span class="cron-name" style="opacity:0.5;">No cron jobs found</span></div>';
             badge.textContent = '0';
@@ -1560,19 +715,19 @@ const WIDGETS = {
             const lastRun = job.lastRun ? new Date(job.lastRun).toLocaleTimeString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : 'Never';
             const statusBadge = job.lastStatus ? (job.lastStatus === 'ok' ? '✓' : '✗') : '';
             return '<div class="cron-item" style="display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid var(--border,#30363d);font-size:calc(13px * var(--font-scale, 1));">' +
-              '<span style="flex-shrink:0;">' + _esc(statusDot) + '</span>' +
+              '<span style="flex-shrink:0;">' + statusDot + '</span>' +
               '<div style="flex:1;min-width:0;">' +
-                '<div style="font-weight:500;">' + _esc(job.name) + '</div>' +
+                '<div style="font-weight:500;">' + job.name + '</div>' +
               '</div>' +
               '<div style="text-align:right;font-size:0.8em;opacity:0.6;flex-shrink:0;">' +
-                '<div>' + _esc(statusBadge) + ' ' + _esc(lastRun) + '</div>' +
+                '<div>' + statusBadge + ' ' + lastRun + '</div>' +
               '</div>' +
             '</div>';
           }).join('');
           badge.textContent = jobs.length + ' jobs';
         } catch (e) {
           console.error('Cron jobs widget error:', e);
-          list.innerHTML = '<div class="cron-item"><span class="cron-name">Error: ' + _esc(e.message) + '</span></div>';
+          document.getElementById('${props.id}-list').innerHTML = '<div class="cron-item"><span class="cron-name">Error loading</span></div>';
         }
       }
       update_${props.id.replace(/-/g, '_')}();
@@ -1581,7 +736,7 @@ const WIDGETS = {
   },
 
   'system-log': {
-
+    privacyWarning: true,
     name: 'System Log',
     icon: '🔧',
     category: 'large',
@@ -1591,7 +746,6 @@ const WIDGETS = {
     hasApiKey: false,
     properties: {
       title: 'System Log',
-      server: 'local',
       endpoint: '/api/system-log',
       maxLines: 50,
       refreshInterval: 10
@@ -1604,7 +758,7 @@ const WIDGETS = {
     generateHtml: (props) => `
       <div class="dash-card" id="widget-${props.id}" style="height:100%;">
         <div class="dash-card-head">
-          <span class="dash-card-title">${renderIcon('system-log')} ${props.title || 'System Log'}</span>
+          <span class="dash-card-title">🔧 ${props.title || 'System Log'}</span>
           <span class="dash-card-badge" id="${props.id}-badge">—</span>
         </div>
         <div class="dash-card-body compact-list syslog-scroll" id="${props.id}-log">
@@ -1624,29 +778,20 @@ const WIDGETS = {
         if (level === 'OK') return 'ok';
         return 'info';
       }
-      // System Log Widget: ${props.id} — ${props.server === 'local' ? 'local' : 'remote: ' + props.server}
       async function update_${props.id.replace(/-/g, '_')}() {
-        const serverId = '${props.server || 'local'}';
         try {
-          let entries = [];
-          if (serverId === 'local') {
-            const res = await fetch('${props.endpoint || '/api/system-log'}?max=${props.maxLines || 50}');
-            const json = await res.json();
-            entries = json.entries || [];
-            if (!entries.length && json.lines && json.lines.length) {
-              entries = json.lines.map(line => {
-                let level = 'INFO';
-                if (/\\b(error|fatal)\\b/i.test(line)) level = 'ERROR';
-                else if (/\\bwarn/i.test(line)) level = 'WARN';
-                else if (/\\b(ok|success|ready|started)\\b/i.test(line)) level = 'OK';
-                return { time: new Date().toISOString(), level, category: 'system', message: line };
-              });
-            }
-          } else {
-            const res = await fetch('/api/servers/' + serverId + '/stats');
-            const data = await res.json();
-            if (data.error) throw new Error(data.error);
-            entries = data.openclaw?.systemLog?.entries || [];
+          const res = await fetch('${props.endpoint || '/api/system-log'}?max=${props.maxLines || 50}');
+          const json = await res.json();
+          // Handle both new format (json.entries) and old format (json.lines)
+          let entries = json.entries || [];
+          if (!entries.length && json.lines && json.lines.length) {
+            entries = json.lines.map(line => {
+              let level = 'INFO';
+              if (/\\b(error|fatal)\\b/i.test(line)) level = 'ERROR';
+              else if (/\\bwarn/i.test(line)) level = 'WARN';
+              else if (/\\b(ok|success|ready|started)\\b/i.test(line)) level = 'OK';
+              return { time: new Date().toISOString(), level, category: 'system', message: line };
+            });
           }
           const log = document.getElementById('${props.id}-log');
           const badge = document.getElementById('${props.id}-badge');
@@ -1679,7 +824,7 @@ const WIDGETS = {
   },
 
   'calendar': {
-
+    privacyWarning: true,
     name: 'Calendar',
     icon: '📅',
     category: 'large',
@@ -1699,7 +844,7 @@ const WIDGETS = {
     generateHtml: (props) => `
       <div class="dash-card" id="widget-${props.id}" style="height:100%;">
         <div class="dash-card-head">
-          <span class="dash-card-title">${renderIcon('calendar')} ${props.title || 'Calendar'}</span>
+          <span class="dash-card-title">📅 ${props.title || 'Calendar'}</span>
         </div>
         <div class="dash-card-body" id="${props.id}-events" style="overflow-y:auto;">
           <div style="color:#8b949e;font-size:calc(13px * var(--font-scale, 1));">Loading events…</div>
@@ -1724,7 +869,13 @@ const WIDGETS = {
           function _escHtml(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
           function _linkify(s) { return _escHtml(s).replace(/(https?:\\/\\/[^\\s<]+)/g, '<a href="$1" target="_blank" rel="noopener" style="color:#58a6ff;text-decoration:underline;">$1</a>'); }
           container.innerHTML = events.map(function(ev) {
-            var timeStr = ev.allDay ? 'All Day' : new Date(ev.start).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+            var evDate = new Date(ev.start);
+            var now = new Date();
+            var isToday = evDate.toDateString() === now.toDateString();
+            var tomorrow = new Date(now); tomorrow.setDate(tomorrow.getDate() + 1);
+            var isTomorrow = evDate.toDateString() === tomorrow.toDateString();
+            var datePrefix = isToday ? '' : isTomorrow ? 'Tomorrow ' : evDate.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ' ';
+            var timeStr = ev.allDay ? (datePrefix || 'Today ') + 'All Day' : datePrefix + evDate.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
             return '<div style="padding:4px 0;border-bottom:1px solid #21262d;font-size:calc(13px * var(--font-scale, 1));">' +
               '<span style="color:#58a6ff;">' + timeStr + '</span> ' +
               '<span style="color:#e6edf3;">' + _linkify(ev.summary || 'Untitled') + '</span>' +
@@ -1759,7 +910,7 @@ const WIDGETS = {
     generateHtml: (props) => `
       <div class="dash-card" id="widget-${props.id}" style="height:100%;">
         <div class="dash-card-head">
-          <span class="dash-card-title">${renderIcon('notes')} ${props.title || 'Notes'}</span>
+          <span class="dash-card-title">📝 ${props.title || 'Notes'}</span>
           <span class="dash-card-badge" id="${props.id}-badge">0</span>
         </div>
         <div class="dash-card-body" style="display:flex;flex-direction:column;height:100%;overflow:hidden;">
@@ -1931,7 +1082,7 @@ const WIDGETS = {
     generateHtml: (props) => `
       <div class="dash-card" id="widget-${props.id}" style="height:100%;">
         <div class="dash-card-head">
-          <span class="dash-card-title">${renderIcon('ai-claude')} ${props.title || 'Claude'}</span>
+          <span class="dash-card-title">🟣 ${props.title || 'Claude'}</span>
         </div>
         <div class="dash-card-body" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;">
           <div class="kpi-value" id="${props.id}-tokens" style="color:#a371f7;font-size:calc(22px * var(--font-scale, 1));">—</div>
@@ -2116,7 +1267,7 @@ const WIDGETS = {
     generateHtml: (props) => `
       <div class="dash-card" id="widget-${props.id}" style="height:100%;">
         <div class="dash-card-head">
-          <span class="dash-card-title">${renderIcon('ai-cost')} ${props.title || 'AI Costs'}</span>
+          <span class="dash-card-title">💰 ${props.title || 'AI Costs'}</span>
         </div>
         <div class="dash-card-body" style="display:flex;align-items:center;justify-content:center;gap:10px;">
           <div class="kpi-value green" id="${props.id}-cost">—</div>
@@ -2161,7 +1312,7 @@ const WIDGETS = {
     generateHtml: (props) => `
       <div class="dash-card" id="widget-${props.id}" style="height:100%;">
         <div class="dash-card-head">
-          <span class="dash-card-title">${renderIcon('api-status')} ${props.title || 'API Status'}</span>
+          <span class="dash-card-title">🔄 ${props.title || 'API Status'}</span>
         </div>
         <div class="dash-card-body" id="${props.id}-status">
           <div class="status-row">🟢 OpenAI</div>
@@ -2211,7 +1362,6 @@ const WIDGETS = {
     apiKeyName: 'OPENCLAW_API',
     properties: {
       title: 'Sessions',
-      server: 'local',
       endpoint: '/api/sessions',
       refreshInterval: 30
     },
@@ -2222,7 +1372,7 @@ const WIDGETS = {
     generateHtml: (props) => `
       <div class="dash-card" id="widget-${props.id}" style="height:100%;">
         <div class="dash-card-head">
-          <span class="dash-card-title">${renderIcon('sessions')} ${props.title || 'Sessions'}</span>
+          <span class="dash-card-title">💬 ${props.title || 'Sessions'}</span>
         </div>
         <div class="dash-card-body" style="display:flex;align-items:center;justify-content:center;gap:10px;">
           <div class="kpi-value blue" id="${props.id}-count">—</div>
@@ -2230,23 +1380,13 @@ const WIDGETS = {
         </div>
       </div>`,
     generateJs: (props) => `
-      // Session Count Widget: ${props.id} — ${props.server === 'local' ? 'local' : 'remote: ' + props.server}
+      // Session Count Widget: ${props.id}
       async function update_${props.id.replace(/-/g, '_')}() {
-        const serverId = '${props.server || 'local'}';
         try {
-          let count;
-          if (serverId === 'local') {
-            const res = await fetch('${props.endpoint || '/api/sessions'}');
-            const json = await res.json();
-            const data = json.data || json;
-            count = data.active || data.length || 0;
-          } else {
-            const res = await fetch('/api/servers/' + serverId + '/stats');
-            const data = await res.json();
-            if (data.error) throw new Error(data.error);
-            count = data.openclaw?.sessions?.active || data.openclaw?.sessions?.recent24h || 0;
-          }
-          document.getElementById('${props.id}-count').textContent = count;
+          const res = await fetch('${props.endpoint || '/api/sessions'}');
+          const json = await res.json();
+          const data = json.data || json;
+          document.getElementById('${props.id}-count').textContent = data.active || data.length || 0;
         } catch (e) {
           document.getElementById('${props.id}-count').textContent = '—';
         }
@@ -2279,7 +1419,7 @@ const WIDGETS = {
     generateHtml: (props) => `
       <div class="dash-card" id="widget-${props.id}" style="height:100%;">
         <div class="dash-card-head">
-          <span class="dash-card-title">${renderIcon('tokens')} ${props.title || 'Tokens'}</span>
+          <span class="dash-card-title">📊 ${props.title || 'Tokens'}</span>
         </div>
         <div class="dash-card-body" style="display:flex;flex-direction:column;align-items:center;justify-content:center;">
           <div class="kpi-value" id="${props.id}-value">—</div>
@@ -2316,13 +1456,13 @@ const WIDGETS = {
     name: 'CPU / Memory',
     icon: '💻',
     category: 'small',
-    description: 'Shows CPU and memory usage. Supports remote servers via lobsterboard-agent.',
+    description: 'Shows CPU and memory usage. Requires system stats API.',
     defaultWidth: 200,
     defaultHeight: 120,
     hasApiKey: false,
     properties: {
       title: 'System',
-      server: 'local',
+      endpoint: '/api/system',
       refreshInterval: 5
     },
     preview: `<div style="padding:8px;font-size:11px;">
@@ -2332,7 +1472,7 @@ const WIDGETS = {
     generateHtml: (props) => `
       <div class="dash-card" id="widget-${props.id}" style="height:100%;">
         <div class="dash-card-head">
-          <span class="dash-card-title">${renderIcon('cpu')} ${props.title || 'System'}</span>
+          <span class="dash-card-title">💻 ${props.title || 'System'}</span>
         </div>
         <div class="dash-card-body">
         <div class="sys-row"><span>CPU</span><span class="blue" id="${props.id}-cpu">—</span></div>
@@ -2340,14 +1480,8 @@ const WIDGETS = {
         </div>
       </div>`,
     generateJs: (props) => `
-      // CPU/Memory Widget: ${props.id} — ${props.server === 'local' ? 'local SSE' : 'remote: ' + props.server}
-      onStats('${props.server || 'local'}', function(data) {
-        // Handle offline state
-        if (data._offline) {
-          document.getElementById('${props.id}-cpu').textContent = '⚠️';
-          document.getElementById('${props.id}-mem').textContent = 'offline';
-          return;
-        }
+      // CPU/Memory Widget: ${props.id} — live via SSE
+      onSystemStats(function(data) {
         if (data.cpu) {
           document.getElementById('${props.id}-cpu').textContent = data.cpu.currentLoad.toFixed(0) + '%';
         }
@@ -2356,7 +1490,7 @@ const WIDGETS = {
           const total = (data.memory.total / (1024*1024*1024)).toFixed(1);
           document.getElementById('${props.id}-mem').textContent = used + ' / ' + total + ' GB';
         }
-      }, ${(props.refreshInterval || 5) * 1000});
+      });
     `
   },
 
@@ -2364,14 +1498,14 @@ const WIDGETS = {
     name: 'Disk Usage',
     icon: '💾',
     category: 'small',
-    description: 'Shows disk space usage. Supports remote servers via lobsterboard-agent.',
+    description: 'Shows disk space usage. Requires system stats API.',
     defaultWidth: 160,
     defaultHeight: 100,
     hasApiKey: false,
     properties: {
       title: 'Disk',
-      server: 'local',
       path: '/',
+      endpoint: '/api/disk',
       refreshInterval: 60
     },
     preview: `<div style="text-align:center;padding:8px;">
@@ -2381,7 +1515,7 @@ const WIDGETS = {
     generateHtml: (props) => `
       <div class="dash-card" id="widget-${props.id}" style="height:100%;">
         <div class="dash-card-head">
-          <span class="dash-card-title">${renderIcon('disk')} ${props.title || 'Disk Usage'}</span>
+          <span class="dash-card-title">💾 ${props.title || 'Disk Usage'}</span>
         </div>
         <div class="dash-card-body" style="display:flex;align-items:center;justify-content:center;gap:10px;">
           <div class="kpi-ring-wrap kpi-ring-sm">
@@ -2399,35 +1533,20 @@ const WIDGETS = {
         </div>
       </div>`,
     generateJs: (props) => `
-      // Disk Usage Widget: ${props.id} — ${props.server === 'local' ? 'local SSE' : 'remote: ' + props.server}
-      onStats('${props.server || 'local'}', function(data) {
-        // Handle offline state
-        if (data._offline) {
-          document.getElementById('${props.id}-pct').textContent = '⚠️';
-          document.getElementById('${props.id}-size').textContent = 'offline';
-          document.getElementById('${props.id}-ring').style.strokeDashoffset = 125.66;
-          return;
-        }
-        
-        // Handle both local (array) and remote (object) disk data
-        let d;
-        if (Array.isArray(data.disk)) {
-          if (data.disk.length === 0) return;
-          const targetMount = '${props.path || '/'}';
-          d = data.disk.find(x => x.mount === targetMount) || data.disk[0];
-        } else if (data.disk) {
-          d = data.disk;
-        } else {
-          return;
-        }
-        const pct = d.use || d.percent || 0;
+      // Disk Usage Widget: ${props.id} — live via SSE
+      onSystemStats(function(data) {
+        if (!data.disk || data.disk.length === 0) return;
+        // Find the configured mount or default to first/root
+        const targetMount = '${props.path || '/'}';
+        const d = data.disk.find(x => x.mount === targetMount) || data.disk[0];
+        const pct = d.use || 0;
         const circumference = 125.66;
         document.getElementById('${props.id}-ring').style.strokeDashoffset = circumference - (pct / 100) * circumference;
         document.getElementById('${props.id}-pct').textContent = Math.round(pct) + '%';
-        const usedGB = ((d.used || 0) / (1024*1024*1024)).toFixed(1);
-        const totalGB = ((d.size || d.total || 0) / (1024*1024*1024)).toFixed(0);
+        const usedGB = (d.used / (1024*1024*1024)).toFixed(1);
+        const totalGB = (d.size / (1024*1024*1024)).toFixed(0);
         document.getElementById('${props.id}-size').textContent = usedGB + ' / ' + totalGB + ' GB';
-      }, ${(props.refreshInterval || 60) * 1000});
+      });
     `
   },
 
@@ -2435,44 +1554,34 @@ const WIDGETS = {
     name: 'Uptime Monitor',
     icon: '📡',
     category: 'large',
-    description: 'Shows system uptime, CPU, and memory. Supports remote servers via lobsterboard-agent.',
+    description: 'Shows service uptime. Requires uptime monitoring backend.',
     defaultWidth: 350,
     defaultHeight: 220,
     hasApiKey: false,
     properties: {
       title: 'Uptime',
-      server: 'local',
+      services: 'Website,API,Database',
       refreshInterval: 30
     },
     preview: `<div style="padding:4px;font-size:11px;">
-      <div>🟢 System — 5d 12h</div>
-      <div>🟢 CPU — 12.5%</div>
-      <div>🟢 Memory — 45.2%</div>
+      <div>🟢 Website — 99.9%</div>
+      <div>🟢 API — 100%</div>
+      <div>🟡 Database — 98.2%</div>
     </div>`,
     generateHtml: (props) => `
       <div class="dash-card" id="widget-${props.id}" style="height:100%;">
         <div class="dash-card-head">
-          <span class="dash-card-title">${renderIcon('uptime')} ${props.title || 'Uptime'}</span>
-          ${props.server && props.server !== 'local' ? `<span class="dash-card-badge" style="font-size:10px;">🌐</span>` : ''}
+          <span class="dash-card-title">📡 ${props.title || 'Uptime'}</span>
         </div>
         <div class="dash-card-body" id="${props.id}-services">
           <div class="uptime-row" style="color:var(--text-muted);justify-content:center;">Loading...</div>
         </div>
       </div>`,
     generateJs: (props) => `
-      // Uptime Monitor Widget: ${props.id} — ${props.server === 'local' ? 'local SSE' : 'remote: ' + props.server}
-      onStats('${props.server || 'local'}', function(data) {
-        const container = document.getElementById('${props.id}-services');
-        
-        // Handle offline state
-        if (data._offline) {
-          const lastSeen = data._lastSuccess ? new Date(data._lastSuccess).toLocaleTimeString() : 'never';
-          container.innerHTML = '<div class="uptime-row" style="color:#f85149;justify-content:center;">⚠️ Connection lost</div>' +
-            '<div class="uptime-row" style="opacity:0.6;font-size:11px;justify-content:center;">Last: ' + lastSeen + '</div>';
-          return;
-        }
-        
+      // Uptime Monitor Widget: ${props.id} — live via SSE
+      onSystemStats(function(data) {
         if (data.uptime == null) return;
+        const container = document.getElementById('${props.id}-services');
         const secs = data.uptime;
         const d = Math.floor(secs / 86400);
         const h = Math.floor((secs % 86400) / 3600);
@@ -2481,19 +1590,16 @@ const WIDGETS = {
         if (d > 0) uptimeStr = d + 'd ' + h + 'h ' + m + 'm';
         else if (h > 0) uptimeStr = h + 'h ' + m + 'm';
         else uptimeStr = m + 'm';
-        var html = '<div class="uptime-row"><span>' + window.renderIcon('uptime') + ' System</span><span class="uptime-pct">' + uptimeStr + '</span></div>';
+        var html = '<div class="uptime-row"><span>🟢 System</span><span class="uptime-pct">' + uptimeStr + '</span></div>';
         if (data.cpu) {
-          html += '<div class="uptime-row"><span>' + window.renderIcon('cpu') + ' CPU Load</span><span class="uptime-pct">' + data.cpu.currentLoad.toFixed(1) + '%</span></div>';
+          html += '<div class="uptime-row"><span>💻 CPU Load</span><span class="uptime-pct">' + data.cpu.currentLoad.toFixed(1) + '%</span></div>';
         }
         if (data.memory) {
           const memPct = ((data.memory.active / data.memory.total) * 100).toFixed(1);
-          html += '<div class="uptime-row"><span>' + window.renderIcon('memory') + ' Memory</span><span class="uptime-pct">' + memPct + '%</span></div>';
-        }
-        if (data.serverName && data._remote) {
-          html += '<div class="uptime-row" style="opacity:0.6;font-size:11px;"><span>📡 ' + data.serverName + '</span></div>';
+          html += '<div class="uptime-row"><span>🧠 Memory</span><span class="uptime-pct">' + memPct + '%</span></div>';
         }
         container.innerHTML = html;
-      }, ${(props.refreshInterval || 30) * 1000});
+      });
     `
   },
 
@@ -2501,13 +1607,13 @@ const WIDGETS = {
     name: 'Docker Containers',
     icon: '🐳',
     category: 'large',
-    description: 'Lists Docker containers with status. Supports remote servers via lobsterboard-agent.',
+    description: 'Lists Docker containers with status. Requires Docker API proxy.',
     defaultWidth: 380,
     defaultHeight: 250,
     hasApiKey: false,
     properties: {
       title: 'Containers',
-      server: 'local',
+      endpoint: '/api/docker',
       refreshInterval: 10
     },
     preview: `<div style="padding:4px;font-size:11px;">
@@ -2518,7 +1624,7 @@ const WIDGETS = {
     generateHtml: (props) => `
       <div class="dash-card" id="widget-${props.id}" style="height:100%;">
         <div class="dash-card-head">
-          <span class="dash-card-title">${renderIcon('docker')} ${props.title || 'Containers'}</span>
+          <span class="dash-card-title">🐳 ${props.title || 'Containers'}</span>
           <span class="dash-card-badge" id="${props.id}-badge">—</span>
         </div>
         <div class="dash-card-body compact-list" id="${props.id}-list">
@@ -2526,35 +1632,23 @@ const WIDGETS = {
         </div>
       </div>`,
     generateJs: (props) => `
-      // Docker Containers Widget: ${props.id} — ${props.server === 'local' ? 'local SSE' : 'remote: ' + props.server}
-      onStats('${props.server || 'local'}', function(data) {
+      // Docker Containers Widget: ${props.id} — live via SSE
+      onSystemStats(function(data) {
         const list = document.getElementById('${props.id}-list');
         const badge = document.getElementById('${props.id}-badge');
-        
-        // Handle offline state
-        if (data._offline) {
-          list.innerHTML = '<div class="docker-row" style="color:#f85149;">⚠️ Connection lost</div>';
-          badge.textContent = '—';
+        if (!data.docker || data.docker.length === 0) {
+          list.innerHTML = '<div class="docker-row" style="color:var(--text-muted);">No containers found</div>';
+          badge.textContent = '0';
           return;
         }
-        
-        // Handle remote docker data structure
-        const dockerData = data._remote && data.docker?.containers ? data.docker.containers : data.docker;
-        if (!dockerData || dockerData.length === 0) {
-          const msg = data._remote && data.docker?.available === false ? 'Docker not available' : 'No containers found';
-          list.innerHTML = '<div class="docker-row" style="color:var(--text-muted);">' + msg + '</div>';
-          badge.textContent = data._remote && data.docker ? (data.docker.running || 0) + '/' + (data.docker.total || 0) : '0';
-          return;
-        }
-        const containers = dockerData;
+        const containers = data.docker;
         list.innerHTML = containers.map(function(c) {
-          const running = c.state === 'running' || c.running === true;
-          const icon = running ? '🟢' : '🔴';
+          const icon = c.state === 'running' ? '🟢' : '🔴';
           const name = (c.name || '').replace(/^\\//, '');
           return '<div class="docker-row">' + icon + ' ' + name + '<span class="docker-status">' + (c.state || c.status || '—') + '</span></div>';
         }).join('');
-        badge.textContent = data._remote && data.docker ? (data.docker.running || 0) + '/' + (data.docker.total || 0) : containers.length;
-      }, ${(props.refreshInterval || 10) * 1000});
+        badge.textContent = containers.length;
+      });
     `
   },
 
@@ -2562,23 +1656,23 @@ const WIDGETS = {
     name: 'Network Speed',
     icon: '🌐',
     category: 'small',
-    description: 'Shows real-time network activity. Supports remote servers via lobsterboard-agent.',
+    description: 'Shows real-time network activity (upload/download throughput). Updates every 2 seconds.',
     defaultWidth: 200,
     defaultHeight: 100,
     hasApiKey: false,
     properties: {
       title: 'Network',
-      server: 'local',
-      refreshInterval: 5
+      endpoint: '/api/network',
+      refreshInterval: 2
     },
     preview: `<div style="padding:8px;font-size:11px;">
-      <div>↓ <span style="color:#3fb950;">45 KB/s</span></div>
-      <div>↑ <span style="color:#58a6ff;">12 KB/s</span></div>
+      <div>↓ <span style="color:#3fb950;">45 Mbps</span></div>
+      <div>↑ <span style="color:#58a6ff;">12 Mbps</span></div>
     </div>`,
     generateHtml: (props) => `
       <div class="dash-card" id="widget-${props.id}" style="height:100%;">
         <div class="dash-card-head">
-          <span class="dash-card-title">${renderIcon('network')} ${props.title || 'Network'}</span>
+          <span class="dash-card-title">🌐 ${props.title || 'Network'}</span>
         </div>
         <div class="dash-card-body" style="display:flex;flex-direction:column;align-items:center;justify-content:center;">
           <div class="net-row">↓ <span class="green" id="${props.id}-down">—</span></div>
@@ -2586,38 +1680,26 @@ const WIDGETS = {
         </div>
       </div>`,
     generateJs: (props) => `
-      // Network Speed Widget: ${props.id} — ${props.server === 'local' ? 'local SSE' : 'remote: ' + props.server}
+      // Network Speed Widget: ${props.id} — live via SSE
       function _fmtRate(bytes) {
         if (bytes == null || bytes < 0) return '0 B/s';
         if (bytes < 1024) return bytes.toFixed(0) + ' B/s';
         if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB/s';
         return (bytes / (1024 * 1024)).toFixed(1) + ' MB/s';
       }
-      onStats('${props.server || 'local'}', function(data) {
-        // Handle offline state
-        if (data._offline) {
-          document.getElementById('${props.id}-down').textContent = '⚠️';
-          document.getElementById('${props.id}-up').textContent = 'offline';
-          return;
-        }
-        
+      onSystemStats(function(data) {
         if (!data.network || data.network.length === 0) return;
-        // Handle both local (array) and remote (object) formats
+        // Sum all interfaces or pick the first non-loopback
         let rx = 0, tx = 0;
-        if (Array.isArray(data.network)) {
-          data.network.forEach(function(n) {
-            if (n.iface !== 'lo' && n.iface !== 'lo0') {
-              rx += (n.rx_sec || 0);
-              tx += (n.tx_sec || 0);
-            }
-          });
-        } else {
-          rx = data.network.rx_sec || data.network.rxSec || 0;
-          tx = data.network.tx_sec || data.network.txSec || 0;
-        }
+        data.network.forEach(function(n) {
+          if (n.iface !== 'lo' && n.iface !== 'lo0') {
+            rx += (n.rx_sec || 0);
+            tx += (n.tx_sec || 0);
+          }
+        });
         document.getElementById('${props.id}-down').textContent = _fmtRate(rx);
         document.getElementById('${props.id}-up').textContent = _fmtRate(tx);
-      }, ${(props.refreshInterval || 5) * 1000});
+      });
     `
   },
 
@@ -2626,7 +1708,7 @@ const WIDGETS = {
   // ─────────────────────────────────────────────
 
   'todo-list': {
-
+    privacyWarning: true,
     name: 'Todo List',
     icon: '✅',
     category: 'large',
@@ -2645,7 +1727,7 @@ const WIDGETS = {
     generateHtml: (props) => `
       <div class="dash-card" id="widget-${props.id}" style="height:100%;">
         <div class="dash-card-head">
-          <span class="dash-card-title">${renderIcon('todo')} ${props.title || 'Todo'}</span>
+          <span class="dash-card-title">✅ ${props.title || 'Todo'}</span>
           <span class="dash-card-badge" id="${props.id}-badge">0</span>
         </div>
         <div class="dash-card-body" style="display:flex;flex-direction:column;height:100%;overflow:hidden;">
@@ -2737,7 +1819,7 @@ const WIDGETS = {
     generateHtml: (props) => `
       <div class="dash-card" id="widget-${props.id}" style="height:100%;">
         <div class="dash-card-head">
-          <span class="dash-card-title">${renderIcon('email')} ${props.title || 'Email'}</span>
+          <span class="dash-card-title">📧 ${props.title || 'Email'}</span>
         </div>
         <div class="dash-card-body" style="display:flex;align-items:center;justify-content:center;gap:10px;">
           <div class="kpi-value red" id="${props.id}-count">—</div>
@@ -2758,7 +1840,7 @@ const WIDGETS = {
         }
       }
       update_${props.id.replace(/-/g, '_')}();
-      setInterval(update_${props.id.replace(/-/g, '_')}, ${(props.refreshInterval || 300) * 1000});
+      setInterval(update_${props.id.replace(/-/g, '_')}, ${(props.refreshInterval || 120) * 1000});
     `
   },
 
@@ -2782,7 +1864,7 @@ const WIDGETS = {
     generateHtml: (props) => `
       <div class="dash-card" id="widget-${props.id}" style="height:100%;">
         <div class="dash-card-head">
-          <span class="dash-card-title">${renderIcon('pomodoro')} ${props.title || 'Focus'}</span>
+          <span class="dash-card-title">🎯 ${props.title || 'Focus'}</span>
         </div>
         <div class="dash-card-body" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;">
           <div class="kpi-value" id="${props.id}-time">${props.workMinutes || 25}:00</div>
@@ -2894,7 +1976,7 @@ const WIDGETS = {
     generateHtml: (props) => `
       <div class="dash-card" id="widget-${props.id}" style="height:100%;">
         <div class="dash-card-head">
-          <span class="dash-card-title">${renderIcon('github')} ${props.title || 'GitHub'}</span>
+          <span class="dash-card-title">🐙 ${props.title || 'GitHub'}</span>
         </div>
         <div class="dash-card-body" id="${props.id}-stats" style="font-size:calc(13px * var(--font-scale, 1));">
           <div style="color:var(--text-muted);">Loading...</div>
@@ -2958,63 +2040,56 @@ const WIDGETS = {
     name: 'Stock Ticker',
     icon: '📈',
     category: 'bar',
-    description: 'Scrolling stock ticker with multiple symbols. Free API key required — sign up at finnhub.io/register (60 calls/min free). Enter symbols separated by commas (e.g. AAPL, MSFT, GOOGL).',
+    description: 'Scrolling stock ticker with multiple symbols. No API key needed — uses Yahoo Finance. Enter symbols separated by commas (e.g. AAPL, MSFT, GOOGL, BTC-USD).',
     defaultWidth: 1920,
     defaultHeight: 40,
-    hasApiKey: true,
-    apiKeyName: 'FINNHUB_API_KEY',
-    hideApiKeyVar: true,
+    hasApiKey: false,
     properties: {
       title: 'Stocks',
-      symbol: 'AAPL, MSFT, GOOGL, AMZN, TSLA',
-      apiKey: '',
-      apiKeyNote: 'Get a free key at finnhub.io/register',
-      refreshInterval: 60
+      symbol: 'AAPL, MSFT, GOOGL, AMZN, TSLA, BTC-USD',
+      refreshInterval: 120
     },
     preview: `<div style="background:#161b22;padding:8px;font-size:11px;overflow:hidden;">
       📈 AAPL $185.42 <span style="color:#3fb950;">+1.2%</span> •• MSFT $420.15 <span style="color:#f85149;">-0.3%</span> •• GOOGL $175.80 <span style="color:#3fb950;">+0.8%</span>
     </div>`,
     generateHtml: (props) => `
       <section class="news-ticker-wrap" id="widget-${props.id}">
-        <span class="ticker-label lb-icon" data-icon="stock">📈</span>
+        <span class="ticker-label">📈</span>
         <div class="ticker-track">
-          <div class="ticker-content" id="${props.id}-ticker">${props.apiKey ? 'Loading stocks...' : 'Set API key in Edit Mode (Ctrl+E) — free at finnhub.io/register'}</div>
+          <div class="ticker-content" id="${props.id}-ticker">Loading stocks...</div>
         </div>
       </section>`,
     generateJs: (props) => `
       async function update_${props.id.replace(/-/g, '_')}() {
         const el = document.getElementById('${props.id}-ticker');
         if (!el) return;
-        const apiKey = '${props.apiKey || ''}';
-        if (!apiKey) {
-          el.innerHTML = 'Set API key in Edit Mode — <a href="https://finnhub.io/register" target="_blank" style="color:#58a6ff;">get free key →</a>';
-          return;
-        }
         const symbols = '${props.symbol || 'AAPL'}'.split(',').map(s => s.trim()).filter(Boolean);
         try {
-          const results = await Promise.all(symbols.map(async (sym) => {
-            try {
-              const res = await fetch('https://finnhub.io/api/v1/quote?symbol=' + sym + '&token=' + apiKey);
-              const data = await res.json();
-              if (data.c === 0 && data.h === 0) return '<span class="ticker-link" style="color:#8b949e;">' + sym + ' —</span>';
-              const change = ((data.c - data.pc) / data.pc * 100).toFixed(2);
-              const color = change >= 0 ? '#3fb950' : '#f85149';
-              const arrow = change >= 0 ? '▲' : '▼';
-              return '<span class="ticker-link" style="cursor:default;">' +
-                '<strong>' + sym + '</strong> $' + data.c.toFixed(2) +
-                ' <span style="color:' + color + ';">' + arrow + ' ' + (change >= 0 ? '+' : '') + change + '%</span></span>';
-            } catch (_) {
-              return '<span class="ticker-link" style="color:#8b949e;">' + sym + ' —</span>';
-            }
-          }));
+          const syms = symbols.join(',');
+          const res = await fetch('/api/stocks?symbols=' + encodeURIComponent(syms));
+          const quotes = await res.json();
+          if (!Array.isArray(quotes) || quotes.length === 0) throw new Error('No data');
+          const results = quotes.map(q => {
+            const price = q.price;
+            const pct = q.changePercent;
+            if (price == null) return '<span class="ticker-link" style="color:#8b949e;">' + q.symbol + ' —</span>';
+            const color = pct >= 0 ? '#3fb950' : '#f85149';
+            const arrow = pct >= 0 ? '▲' : '▼';
+            const prefix = q.symbol.includes('-USD') || q.quoteType === 'CRYPTOCURRENCY' ? '' : '$';
+            const priceStr = price >= 1000 ? price.toLocaleString(undefined, {maximumFractionDigits:0}) : price.toFixed(2);
+            return '<span class="ticker-link" style="cursor:default;">' +
+              '<strong>' + q.symbol.replace('-USD','') + '</strong> ' + prefix + priceStr +
+              ' <span style="color:' + color + ';">' + arrow + ' ' + (pct >= 0 ? '+' : '') + pct.toFixed(2) + '%</span></span>';
+          });
           el.innerHTML = results.join('<span class="ticker-sep"> \\u2022\\u2022\\u2022 </span>');
         } catch (e) {
+          console.error('Stock ticker error:', e);
           if (!el.dataset.loaded) el.textContent = 'Failed to load stocks';
         }
         el.dataset.loaded = '1';
       }
       update_${props.id.replace(/-/g, '_')}();
-      setInterval(update_${props.id.replace(/-/g, '_')}, ${(props.refreshInterval || 60) * 1000});
+      setInterval(update_${props.id.replace(/-/g, '_')}, ${(props.refreshInterval || 120) * 1000});
     `
   },
 
@@ -3040,7 +2115,7 @@ const WIDGETS = {
     generateHtml: (props) => `
       <div class="dash-card" id="widget-${props.id}" style="height:100%;">
         <div class="dash-card-head">
-          <span class="dash-card-title">${renderIcon('crypto')} ${props.coin?.toUpperCase() || 'BTC'}</span>
+          <span class="dash-card-title">₿ ${props.coin?.toUpperCase() || 'BTC'}</span>
         </div>
         <div class="dash-card-body" style="display:flex;flex-direction:column;align-items:center;justify-content:center;">
           <div class="kpi-value" id="${props.id}-price" style="position:relative;">
@@ -3108,7 +2183,7 @@ const WIDGETS = {
     generateHtml: (props) => `
       <div class="dash-card" id="widget-${props.id}" style="height:100%;">
         <div class="dash-card-head">
-          <span class="dash-card-title">${renderIcon('home')} ${props.title || 'Indoor'}</span>
+          <span class="dash-card-title">🏠 ${props.title || 'Indoor'}</span>
         </div>
         <div class="dash-card-body" style="display:flex;align-items:center;justify-content:center;gap:10px;">
           <div class="kpi-value" id="${props.id}-temp">—</div>
@@ -3152,7 +2227,7 @@ const WIDGETS = {
     generateHtml: (props) => `
       <div class="dash-card" id="widget-${props.id}" style="height:100%;">
         <div class="dash-card-head">
-          <span class="dash-card-title">${renderIcon('camera')} ${props.title || 'Camera'}</span>
+          <span class="dash-card-title">📷 ${props.title || 'Camera'}</span>
         </div>
         <div class="dash-card-body camera-body">
           <img id="${props.id}-feed" src="${props.streamUrl || ''}" alt="Camera feed" style="width:100%;height:100%;object-fit:cover;">
@@ -3187,7 +2262,7 @@ const WIDGETS = {
     generateHtml: (props) => `
       <div class="dash-card" id="widget-${props.id}" style="height:100%;">
         <div class="dash-card-head">
-          <span class="dash-card-title">${renderIcon('power')} ${props.title || 'Power'}</span>
+          <span class="dash-card-title">🔌 ${props.title || 'Power'}</span>
         </div>
         <div class="dash-card-body" style="display:flex;align-items:center;justify-content:center;gap:10px;">
           <div class="kpi-value orange" id="${props.id}-watts">—</div>
@@ -3239,7 +2314,7 @@ const WIDGETS = {
     generateHtml: (props) => `
       <div class="dash-card" id="widget-${props.id}" style="height:100%;">
         <div class="dash-card-head">
-          <span class="dash-card-title">${renderIcon('music')} ${props.title || 'Now Playing'}</span>
+          <span class="dash-card-title">🎵 ${props.title || 'Now Playing'}</span>
         </div>
         <div class="dash-card-body" style="display:flex;align-items:center;gap:12px;">
           <div class="np-art" id="${props.id}-art"></div>
@@ -3295,7 +2370,7 @@ const WIDGETS = {
     generateHtml: (props) => `
       <div class="dash-card" id="widget-${props.id}" style="height:100%;">
         <div class="dash-card-head">
-          <span class="dash-card-title">${renderIcon('quote')} ${props.title || 'Quote'}</span>
+          <span class="dash-card-title">💭 ${props.title || 'Quote'}</span>
         </div>
         <div class="dash-card-body" style="display:flex;flex-direction:column;justify-content:center;">
           <div class="quote-text" id="${props.id}-text" style="font-style:italic;">Loading quote...</div>
@@ -3354,7 +2429,7 @@ const WIDGETS = {
     generateHtml: (props) => `
       <div class="dash-card" id="widget-${props.id}" style="height:100%;">
         <div class="dash-card-head">
-          <span class="dash-card-title">${renderIcon('countdown')} ${props.title || 'Countdown'}</span>
+          <span class="dash-card-title">⏳ ${props.title || 'Countdown'}</span>
         </div>
         <div class="dash-card-body" style="display:flex;flex-direction:column;align-items:center;justify-content:center;">
           <div class="kpi-value" id="${props.id}-countdown">—</div>
@@ -3408,12 +2483,12 @@ const WIDGETS = {
     generateHtml: (props) => `
       <div class="dash-card" id="widget-${props.id}" style="height:100%;">
         <div class="dash-card-head">
-          <span class="dash-card-title">${renderIcon('image')} ${props.title || 'Image'}</span>
+          <span class="dash-card-title">🖼️ ${props.title || 'Image'}</span>
         </div>
         <div class="dash-card-body" style="padding:0;overflow:hidden;display:flex;align-items:center;justify-content:center;background:var(--bg-tertiary);">
           ${props.imagePath 
             ? `<img src="${props.imagePath}" style="width:100%;height:100%;object-fit:contain;">`
-            : `<span style="color:var(--text-muted);font-size:calc(12px * var(--font-scale, 1));">${renderIcon('image')} No image path</span>`
+            : `<span style="color:var(--text-muted);font-size:calc(12px * var(--font-scale, 1));">🖼️ No image path</span>`
           }
         </div>
       </div>`,
@@ -3442,11 +2517,11 @@ const WIDGETS = {
     generateHtml: (props) => `
       <div class="dash-card" id="widget-${props.id}" style="height:100%;">
         <div class="dash-card-head">
-          <span class="dash-card-title">${renderIcon('image-random')} ${props.title || 'Random Image'}</span>
+          <span class="dash-card-title">🎲 ${props.title || 'Random Image'}</span>
         </div>
         <div class="dash-card-body" style="padding:0;overflow:hidden;display:flex;align-items:center;justify-content:center;background:var(--bg-tertiary);">
           <img id="${props.id}-img" src="" style="width:100%;height:100%;object-fit:contain;display:none;">
-          <span id="${props.id}-placeholder" style="color:var(--text-muted);font-size:calc(12px * var(--font-scale, 1));">${renderIcon('image-random')} No images added</span>
+          <span id="${props.id}-placeholder" style="color:var(--text-muted);font-size:calc(12px * var(--font-scale, 1));">🎲 No images added</span>
         </div>
       </div>`,
     generateJs: (props) => {
@@ -3495,12 +2570,12 @@ const WIDGETS = {
     generateHtml: (props) => `
       <div class="dash-card" id="widget-${props.id}" style="height:100%;">
         <div class="dash-card-head">
-          <span class="dash-card-title">${renderIcon('image-new')} ${props.title || 'Latest Image'}</span>
+          <span class="dash-card-title">🆕 ${props.title || 'Latest Image'}</span>
           <span id="${props.id}-filename" style="font-size:11px;color:var(--text-muted);margin-left:auto;"></span>
         </div>
         <div class="dash-card-body" style="padding:0;overflow:hidden;display:flex;align-items:center;justify-content:center;background:var(--bg-tertiary);">
           <img id="${props.id}-img" src="" style="width:100%;height:100%;object-fit:contain;display:none;">
-          <span id="${props.id}-placeholder" style="color:var(--text-muted);font-size:12px;">${renderIcon('image-new')} ${props.directoryPath ? 'Loading...' : 'No directory set'}</span>
+          <span id="${props.id}-placeholder" style="color:var(--text-muted);font-size:12px;">🆕 ${props.directoryPath ? 'Loading...' : 'No directory set'}</span>
         </div>
       </div>`,
     generateJs: (props) => `
@@ -3553,12 +2628,12 @@ const WIDGETS = {
     generateHtml: (props) => `
       <div class="dash-card" id="widget-${props.id}" style="height:100%;">
         <div class="dash-card-head">
-          <span class="dash-card-title">${renderIcon('embed')} ${props.title || 'Image'}</span>
+          <span class="dash-card-title">🌐 ${props.title || 'Image'}</span>
         </div>
         <div class="dash-card-body" style="padding:0;overflow:hidden;display:flex;align-items:center;justify-content:center;background:var(--bg-tertiary);">
           ${props.imageUrl 
             ? `<img src="${props.imageUrl}" style="width:100%;height:100%;object-fit:contain;">`
-            : `<span style="color:var(--text-muted);font-size:calc(12px * var(--font-scale, 1));">${renderIcon('embed')} No image URL</span>`
+            : `<span style="color:var(--text-muted);font-size:calc(12px * var(--font-scale, 1));">🌐 No image URL</span>`
           }
         </div>
       </div>`,
@@ -3589,7 +2664,7 @@ const WIDGETS = {
     generateHtml: (props) => `
       <div class="dash-card" id="widget-${props.id}" style="height:100%;">
         <div class="dash-card-head">
-          <span class="dash-card-title">${renderIcon('links')} ${props.title || 'Quick Links'}</span>
+          <span class="dash-card-title">🔗 ${props.title || 'Quick Links'}</span>
         </div>
         <div class="dash-card-body links-list" id="${props.id}-links">
           ${(props.links || []).length === 0 ? '<span style="color:var(--text-muted);font-size:calc(12px * var(--font-scale, 1));">No links added</span>' : ''}
@@ -3612,12 +2687,12 @@ const WIDGETS = {
         container.style.display = 'grid';
         container.style.gridTemplateColumns = 'repeat(' + cols + ', 1fr)';
         container.style.gap = '4px';
-        container.innerHTML = links.filter(link => _isSafeUrl(link.url)).map(link => {
+        container.innerHTML = links.map(link => {
           const domain = new URL(link.url).hostname;
-          const favicon = 'https://www.google.com/s2/favicons?sz=32&domain=' + _esc(domain);
-          return '<a href="' + _esc(link.url) + '" class="quick-link" target="_blank" rel="noopener noreferrer" style="display:flex;align-items:center;gap:8px;padding:6px 4px;text-decoration:none;color:var(--text-primary);border-bottom:1px solid var(--border);overflow:hidden;">' +
+          const favicon = 'https://www.google.com/s2/favicons?sz=32&domain=' + domain;
+          return '<a href="' + link.url + '" class="quick-link" target="_blank" style="display:flex;align-items:center;gap:8px;padding:6px 4px;text-decoration:none;color:var(--text-primary);border-bottom:1px solid var(--border);overflow:hidden;">' +
             '<img src="' + favicon + '" style="width:16px;height:16px;flex-shrink:0;" onerror="this.style.display=\\'none\\'">' +
-            '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + _esc(link.name) + '</span>' +
+            '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + link.name + '</span>' +
           '</a>';
         }).join('');
       })();
@@ -3644,10 +2719,10 @@ const WIDGETS = {
     generateHtml: (props) => `
       <div class="dash-card" id="widget-${props.id}" style="height:100%;">
         <div class="dash-card-head">
-          <span class="dash-card-title">${renderIcon('embed')} ${props.title || 'Embed'}</span>
+          <span class="dash-card-title">🌐 ${props.title || 'Embed'}</span>
         </div>
         <div class="dash-card-body" style="padding:0;overflow:hidden;">
-          <iframe src="${_isSafeUrl(props.embedUrl) ? props.embedUrl : 'about:blank'}" style="width:100%;height:100%;border:none;" ${props.allowFullscreen ? 'allowfullscreen' : ''}></iframe>
+          <iframe src="${props.embedUrl || 'about:blank'}" style="width:100%;height:100%;border:none;" ${props.allowFullscreen ? 'allowfullscreen' : ''}></iframe>
         </div>
       </div>`,
     generateJs: (props) => `
@@ -3675,7 +2750,7 @@ const WIDGETS = {
     </div>`,
     generateHtml: (props) => `
       <section class="news-ticker-wrap" id="widget-${props.id}">
-        <span class="ticker-label lb-icon" data-icon="rss">📡</span>
+        <span class="ticker-label">📡</span>
         <div class="ticker-track">
           <div class="ticker-content" id="${props.id}-ticker">Loading feed...</div>
         </div>
@@ -3734,42 +2809,62 @@ const WIDGETS = {
     generateHtml: (props) => `
       <div class="dash-card" id="widget-${props.id}" style="height:100%;">
         <div class="dash-card-head">
-          <span class="dash-card-title">${renderIcon('world-clock')} ${props.title || 'World Clock'}</span>
+          <span class="dash-card-title">🌍 ${props.title || 'World Clock'}</span>
         </div>
         <div class="dash-card-body" id="${props.id}-clocks">
           <div style="color:#8b949e;font-size:calc(12px * var(--font-scale, 1));">Loading times...</div>
         </div>
       </div>`,
     generateJs: (props) => `
-      // World Clock Widget: ${props.id} (pure Intl.DateTimeFormat - no API needed)
-      const CITY_TZ_MAP = {
-        'New York': 'America/New_York', 'Los Angeles': 'America/Los_Angeles', 'Chicago': 'America/Chicago',
-        'London': 'Europe/London', 'Paris': 'Europe/Paris', 'Berlin': 'Europe/Berlin',
-        'Tokyo': 'Asia/Tokyo', 'Sydney': 'Australia/Sydney', 'Dubai': 'Asia/Dubai',
-        'Singapore': 'Asia/Singapore', 'Hong Kong': 'Asia/Hong_Kong', 'Mumbai': 'Asia/Kolkata',
-        'Shanghai': 'Asia/Shanghai', 'Seoul': 'Asia/Seoul', 'Moscow': 'Europe/Moscow',
-        'Istanbul': 'Europe/Istanbul', 'Bangkok': 'Asia/Bangkok', 'Toronto': 'America/Toronto',
-        'Heidenheim': 'Europe/Berlin', 'Vienna': 'Europe/Vienna', 'Zurich': 'Europe/Zurich',
-        'Amsterdam': 'Europe/Amsterdam', 'Rome': 'Europe/Rome', 'Madrid': 'Europe/Madrid',
-        'São Paulo': 'America/Sao_Paulo', 'Mexico City': 'America/Mexico_City',
-        'Graz': 'Europe/Vienna', 'Munich': 'Europe/Berlin', 'Frankfurt': 'Europe/Berlin',
-        'Santiago': 'America/Santiago', 'Lima': 'America/Lima'
-      };
+      // World Clock Widget: ${props.id} (uses Intl API — no network calls)
       const locs_${props.id.replace(/-/g, '_')} = '${props.locations || 'New York; London; Tokyo'}'.split(';').map(s => s.trim());
       const hour12_${props.id.replace(/-/g, '_')} = ${!props.format24h};
-      
+
+      // Map city names to IANA timezones
+      const TZ_MAP = {
+        'new york': 'America/New_York', 'nyc': 'America/New_York', 'los angeles': 'America/Los_Angeles',
+        'la': 'America/Los_Angeles', 'chicago': 'America/Chicago', 'denver': 'America/Denver',
+        'london': 'Europe/London', 'paris': 'Europe/Paris', 'berlin': 'Europe/Berlin',
+        'amsterdam': 'Europe/Amsterdam', 'rome': 'Europe/Rome', 'madrid': 'Europe/Madrid',
+        'tokyo': 'Asia/Tokyo', 'shanghai': 'Asia/Shanghai', 'beijing': 'Asia/Shanghai',
+        'hong kong': 'Asia/Hong_Kong', 'singapore': 'Asia/Singapore', 'sydney': 'Australia/Sydney',
+        'dubai': 'Asia/Dubai', 'mumbai': 'Asia/Kolkata', 'delhi': 'Asia/Kolkata',
+        'seoul': 'Asia/Seoul', 'bangkok': 'Asia/Bangkok', 'moscow': 'Europe/Moscow',
+        'istanbul': 'Europe/Istanbul', 'cairo': 'Africa/Cairo', 'johannesburg': 'Africa/Johannesburg',
+        'toronto': 'America/Toronto', 'vancouver': 'America/Vancouver', 'sao paulo': 'America/Sao_Paulo',
+        'mexico city': 'America/Mexico_City', 'honolulu': 'Pacific/Honolulu', 'anchorage': 'America/Anchorage',
+        'athens': 'Europe/Athens', 'lisbon': 'Europe/Lisbon', 'hawaii': 'Pacific/Honolulu',
+        'utc': 'UTC', 'gmt': 'UTC'
+      };
+      function cityToTz(city) {
+        const key = city.toLowerCase().trim();
+        if (TZ_MAP[key]) return TZ_MAP[key];
+        // Try as IANA timezone directly
+        try { new Intl.DateTimeFormat('en', { timeZone: city }); return city; } catch(_) {}
+        // Try replacing space with underscore (e.g. "Los Angeles" -> check done above)
+        const iana = 'America/' + city.replace(/ /g, '_');
+        try { new Intl.DateTimeFormat('en', { timeZone: iana }); return iana; } catch(_) {}
+        return null;
+      }
+
       function update_${props.id.replace(/-/g, '_')}() {
         const container = document.getElementById('${props.id}-clocks');
         const now = new Date();
         const results = locs_${props.id.replace(/-/g, '_')}.map(loc => {
-          const tz = CITY_TZ_MAP[loc] || CITY_TZ_MAP[Object.keys(CITY_TZ_MAP).find(k => k.toLowerCase() === loc.toLowerCase())] || null;
-          if (!tz) return { city: loc, time: '(unknown tz)' };
+          const tz = cityToTz(loc);
+          if (!tz) return { city: loc, time: '—', ok: false };
           try {
-            const fmt = new Intl.DateTimeFormat('en-GB', { timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: hour12_${props.id.replace(/-/g, '_')} });
-            return { city: loc, time: fmt.format(now) };
-          } catch(e) { return { city: loc, time: '—' }; }
+            const time = now.toLocaleTimeString('en-US', {
+              timeZone: tz,
+              hour: '2-digit', minute: '2-digit',
+              hour12: hour12_${props.id.replace(/-/g, '_')}
+            });
+            return { city: loc, time, ok: true };
+          } catch(e) {
+            return { city: loc, time: '—', ok: false };
+          }
         });
-        container.innerHTML = results.map(r => 
+        container.innerHTML = results.map(r =>
           '<div class="tz-row"><span class="tz-city">' + r.city + '</span><span class="tz-time">' + r.time + '</span></div>'
         ).join('');
       }
@@ -3800,7 +2895,7 @@ const WIDGETS = {
     generateHtml: (props) => `
       <div class="dash-card" id="widget-${props.id}" style="height:100%;">
         <div class="dash-card-head">
-          <span class="dash-card-title">${renderIcon('pages')} ${props.title || 'Pages'}</span>
+          <span class="dash-card-title">📑 ${props.title || 'Pages'}</span>
         </div>
         <div class="dash-card-body pages-menu ${props.layout === 'horizontal' ? 'pages-menu-horizontal' : 'pages-menu-vertical'}" id="${props.id}-list">
           <span class="pages-menu-item">Loading…</span>
@@ -3838,6 +2933,246 @@ const WIDGETS = {
       }
       update_${props.id.replace(/-/g, '_')}();
       setInterval(update_${props.id.replace(/-/g, '_')}, ${(props.refreshInterval || 60) * 1000});
+    `
+  },
+
+  'lnmarkets-balance': {
+    name: 'LN Markets',
+    icon: '📈',
+    category: 'small',
+    description: 'LN Markets account balance, open positions count, and PnL.',
+    defaultWidth: 260,
+    defaultHeight: 140,
+    hasApiKey: false,
+    properties: {
+      title: 'LN Markets',
+      refreshInterval: 60
+    },
+    preview: `<div style="padding:8px;text-align:center;">
+      <div style="font-size:20px;font-weight:700;color:#f7931a;">494,411 sats</div>
+      <div style="font-size:10px;color:#8b949e;">LN Markets</div>
+    </div>`,
+    generateHtml: (props) => `
+      <div class="dash-card" id="widget-${props.id}" style="height:100%;">
+        <div class="dash-card-head">
+          <span class="dash-card-title">📈 ${props.title || 'LN Markets'}</span>
+        </div>
+        <div class="dash-card-body" id="${props.id}-body" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:8px;">
+          <div style="color:#8b949e;">Loading...</div>
+        </div>
+      </div>`,
+    generateJs: (props) => `
+      function fmtSats_${props.id.replace(/-/g,'_')}(n) { return n != null ? Number(n).toLocaleString() : '—'; }
+      async function update_${props.id.replace(/-/g, '_')}() {
+        const body = document.getElementById('${props.id}-body');
+        try {
+          const [acctRes, posRes] = await Promise.allSettled([
+            fetch('/api/pages/lightning/lnmarkets/account').then(r=>r.json()),
+            fetch('/api/pages/lightning/lnmarkets/running').then(r=>r.json())
+          ]);
+          const acct = acctRes.status === 'fulfilled' ? acctRes.value : null;
+          const positions = posRes.status === 'fulfilled' && Array.isArray(posRes.value) ? posRes.value : [];
+          const bal = acct && acct.balance != null ? Number(acct.balance) : null;
+          const openCount = positions.length;
+          const totalPl = positions.reduce((s,p) => s + (Number(p.pl) || 0), 0);
+          let html = '<div style="font-size:calc(22px * var(--font-scale,1));font-weight:700;color:#f7931a;">' + fmtSats_${props.id.replace(/-/g,'_')}(bal) + ' sats</div>';
+          html += '<div style="font-size:calc(10px * var(--font-scale,1));color:#8b949e;">';
+          html += openCount > 0 ? openCount + ' open · P&L: <span style="color:' + (totalPl >= 0 ? '#3fb950' : '#f85149') + ';">' + (totalPl >= 0 ? '+' : '') + fmtSats_${props.id.replace(/-/g,'_')}(totalPl) + '</span>' : 'No open positions';
+          html += '</div>';
+          body.innerHTML = html;
+        } catch(e) {
+          console.error('LN Markets widget error:', e);
+          body.innerHTML = '<div style="color:#f85149;">Failed</div>';
+        }
+      }
+      update_${props.id.replace(/-/g, '_')}();
+      setInterval(update_${props.id.replace(/-/g, '_')}, ${(props.refreshInterval || 60) * 1000});
+    `
+  },
+
+  'hyperliquid-balance': {
+    name: 'Hyperliquid',
+    icon: '💧',
+    category: 'small',
+    description: 'Hyperliquid USDC balance.',
+    defaultWidth: 260,
+    defaultHeight: 140,
+    hasApiKey: false,
+    properties: {
+      title: 'Hyperliquid',
+      refreshInterval: 60
+    },
+    preview: `<div style="padding:8px;text-align:center;">
+      <div style="font-size:20px;font-weight:700;color:#58a6ff;">$496.90</div>
+      <div style="font-size:10px;color:#8b949e;">Hyperliquid</div>
+    </div>`,
+    generateHtml: (props) => `
+      <div class="dash-card" id="widget-${props.id}" style="height:100%;">
+        <div class="dash-card-head">
+          <span class="dash-card-title">💧 ${props.title || 'Hyperliquid'}</span>
+        </div>
+        <div class="dash-card-body" id="${props.id}-body" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:8px;">
+          <div style="color:#8b949e;">Loading...</div>
+        </div>
+      </div>`,
+    generateJs: (props) => `
+      function fmtUsd_${props.id.replace(/-/g,'_')}(n) { return n != null ? '\$' + Number(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "—"; }
+      async function update_${props.id.replace(/-/g, '_')}() {
+        const body = document.getElementById('${props.id}-body');
+        try {
+          const res = await fetch('/api/pages/hyperliquid/account');
+          const d = await res.json();
+          if (d.error) throw new Error(d.error);
+          const bal = d.balance != null ? d.balance : 0;
+          let html = '<div style="font-size:calc(22px * var(--font-scale,1));font-weight:700;color:#58a6ff;">' + fmtUsd_${props.id.replace(/-/g,'_')}(bal) + '</div>';
+          html += '<div style="font-size:calc(10px * var(--font-scale,1));color:#8b949e;">Hyperliquid</div>';
+          body.innerHTML = html;
+        } catch(e) {
+          console.error('Hyperliquid widget error:', e);
+          body.innerHTML = '<div style="color:#f85149;">Failed</div>';
+        }
+      }
+      update_${props.id.replace(/-/g, '_')}();
+      setInterval(update_${props.id.replace(/-/g, '_')}, ${(props.refreshInterval || 30) * 1000});
+    `
+  },
+
+  'lnbits-balance': {
+    name: 'LNbits Wallet',
+    icon: '🏦',
+    category: 'small',
+    description: 'LNbits wallet balance.',
+    defaultWidth: 200,
+    defaultHeight: 140,
+    hasApiKey: false,
+    properties: {
+      title: 'LNbits',
+      refreshInterval: 60
+    },
+    preview: `<div style="padding:8px;text-align:center;">
+      <div style="font-size:20px;font-weight:700;color:#f7931a;">0 sats</div>
+      <div style="font-size:10px;color:#8b949e;">LNbits</div>
+    </div>`,
+    generateHtml: (props) => `
+      <div class="dash-card" id="widget-${props.id}" style="height:100%;">
+        <div class="dash-card-head">
+          <span class="dash-card-title">🏦 ${props.title || 'LNbits'}</span>
+        </div>
+        <div class="dash-card-body" id="${props.id}-body" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:8px;">
+          <div style="color:#8b949e;">Loading...</div>
+        </div>
+      </div>`,
+    generateJs: (props) => `
+      async function update_${props.id.replace(/-/g, '_')}() {
+        const body = document.getElementById('${props.id}-body');
+        try {
+          const res = await fetch('/api/pages/lightning/lnbits');
+          const d = await res.json();
+          const bal = d.balance != null ? Math.floor(d.balance / 1000) : null;
+          const name = d.name || 'LNbits';
+          let html = '<div style="font-size:calc(22px * var(--font-scale,1));font-weight:700;color:#f7931a;">' + (bal != null ? bal.toLocaleString() : '—') + ' sats</div>';
+          html += '<div style="font-size:calc(10px * var(--font-scale,1));color:#8b949e;">' + name + '</div>';
+          body.innerHTML = html;
+        } catch(e) {
+          console.error('LNbits widget error:', e);
+          body.innerHTML = '<div style="color:#f85149;">Failed</div>';
+        }
+      }
+      update_${props.id.replace(/-/g, '_')}();
+      setInterval(update_${props.id.replace(/-/g, '_')}, ${(props.refreshInterval || 60) * 1000});
+    `
+  },
+
+  'claude-usage': {
+    name: 'Claude Usage',
+    icon: '🤖',
+    category: 'large',
+    description: 'Real-time Claude Code subscription usage (5h session, 7d weekly, Opus, Sonnet limits).',
+    defaultWidth: 380,
+    defaultHeight: 260,
+    hasApiKey: false,
+    properties: {
+      title: 'Claude Usage',
+      refreshInterval: 120
+    },
+    preview: `<div style="padding:8px;font-size:11px;">
+      <div style="margin-bottom:6px;"><b>5h Session</b> <span style="color:#3fb950;">28%</span></div>
+      <div style="margin-bottom:6px;"><b>7d Weekly</b> <span style="color:#d29922;">31%</span></div>
+      <div><b>Sonnet</b> <span style="color:#3fb950;">0%</span></div>
+    </div>`,
+    generateHtml: (props) => `
+      <div class="dash-card" id="widget-${props.id}" style="height:100%;">
+        <div class="dash-card-head">
+          <span class="dash-card-title">🤖 ${props.title || 'Claude Usage'}</span>
+          <span id="${props.id}-sub" style="font-size:calc(10px * var(--font-scale,1));color:#8b949e;margin-left:auto;"></span>
+        </div>
+        <div class="dash-card-body" id="${props.id}-body" style="padding:8px 12px;overflow-y:auto;">
+          <div style="color:#8b949e;text-align:center;">Loading...</div>
+        </div>
+      </div>`,
+    generateJs: (props) => `
+      function barColor(pct) {
+        if (pct >= 80) return '#f85149';
+        if (pct >= 50) return '#d29922';
+        return '#3fb950';
+      }
+      function timeLeft(iso) {
+        if (!iso) return '';
+        const ms = new Date(iso) - Date.now();
+        if (ms <= 0) return 'now';
+        const h = Math.floor(ms / 3600000);
+        const m = Math.floor((ms % 3600000) / 60000);
+        return h > 0 ? h + 'h ' + m + 'm' : m + 'm';
+      }
+      function usageBar(label, pct, resetIso) {
+        const p = Math.min(100, Math.max(0, pct || 0));
+        const c = barColor(p);
+        const reset = resetIso ? '<span style="color:#8b949e;font-size:calc(10px * var(--font-scale,1));">resets ' + timeLeft(resetIso) + '</span>' : '';
+        return '<div style="margin-bottom:10px;">' +
+          '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:3px;">' +
+            '<span style="font-weight:600;font-size:calc(12px * var(--font-scale,1));">' + label + '</span>' +
+            '<span style="font-size:calc(13px * var(--font-scale,1));font-weight:700;color:' + c + ';">' + p.toFixed(0) + '%</span>' +
+          '</div>' +
+          '<div style="background:#21262d;border-radius:4px;height:8px;overflow:hidden;">' +
+            '<div style="width:' + p + '%;height:100%;background:' + c + ';border-radius:4px;transition:width .5s;"></div>' +
+          '</div>' +
+          (reset ? '<div style="text-align:right;margin-top:2px;">' + reset + '</div>' : '') +
+        '</div>';
+      }
+      async function update_${props.id.replace(/-/g, '_')}() {
+        const body = document.getElementById('${props.id}-body');
+        const subEl = document.getElementById('${props.id}-sub');
+        try {
+          const res = await fetch('/api/pages/claude-usage/usage');
+          const d = await res.json();
+          if (d.error) { body.innerHTML = '<div style="color:#f85149;">' + d.error + '</div>'; return; }
+          if (subEl) {
+            const labels = { max: 'Max (5×)', pro: 'Pro', free: 'Free' };
+            subEl.textContent = labels[d.subscription] || d.subscription || '';
+          }
+          let html = '';
+          if (d.five_hour) html += usageBar('5h Session', d.five_hour.utilization, d.five_hour.resets_at);
+          if (d.seven_day) html += usageBar('7d Weekly', d.seven_day.utilization, d.seven_day.resets_at);
+          if (d.seven_day_opus) html += usageBar('Opus (7d)', d.seven_day_opus.utilization, d.seven_day_opus.resets_at);
+          if (d.seven_day_sonnet && d.seven_day_sonnet.utilization > 0) html += usageBar('Sonnet (7d)', d.seven_day_sonnet.utilization, d.seven_day_sonnet.resets_at);
+          if (d.extra_usage && d.extra_usage.is_enabled) {
+            const used = (d.extra_usage.used_credits / 100).toFixed(2);
+            const limit = d.extra_usage.monthly_limit > 0 ? (d.extra_usage.monthly_limit / 100).toFixed(2) : '∞';
+            html += '<div style="margin-top:4px;padding-top:6px;border-top:1px solid #30363d;">' +
+              '<div style="display:flex;justify-content:space-between;font-size:calc(11px * var(--font-scale,1));">' +
+                '<span style="color:#8b949e;">Extra Usage</span>' +
+                '<span style="font-weight:600;">$' + used + ' / $' + limit + '</span>' +
+              '</div></div>';
+          }
+          if (!html) html = '<div style="color:#8b949e;">No usage data</div>';
+          body.innerHTML = html;
+        } catch (e) {
+          console.error('Claude usage widget error:', e);
+          body.innerHTML = '<div style="color:#f85149;">Failed to load</div>';
+        }
+      }
+      update_${props.id.replace(/-/g, '_')}();
+      setInterval(update_${props.id.replace(/-/g, '_')}, ${(props.refreshInterval || 120) * 1000});
     `
   },
 

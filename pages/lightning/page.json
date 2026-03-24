@@ -1,0 +1,10 @@
+{
+  "id": "lightning",
+  "title": "Lightning",
+  "icon": "⚡",
+  "description": "LNbits wallet balance and LN Markets trades",
+  "order": 10,
+  "enabled": true,
+  "nav": true,
+  "standalone": true
+}

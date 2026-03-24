@@ -96,7 +96,47 @@ function sendError(res, message, statusCode = 500, requestId = null) {
 // PROXY
 // ─────────────────────────────────────────────
 
+// ─────────────────────────────────────────────
+// LOCAL SESSION DATA
+// ─────────────────────────────────────────────
+
+const SESSIONS_DIR = path.join(process.env.HOME || '/home/openclaw', '.openclaw/agents/main/sessions');
+
+function getSessionData() {
+  try {
+    const files = fs.readdirSync(SESSIONS_DIR).filter(f => f.endsWith('.jsonl'));
+    const now = Date.now();
+    const oneHourAgo = now - 3600000;
+    let active = 0;
+    let total = files.length;
+    
+    for (const file of files) {
+      try {
+        const stat = fs.statSync(path.join(SESSIONS_DIR, file));
+        if (stat.mtimeMs > oneHourAgo) active++;
+      } catch (e) { /* skip */ }
+    }
+    
+    return { active, total };
+  } catch (e) {
+    log('ERROR', 'Failed to read sessions', { error: e.message });
+    return { active: 0, total: 0 };
+  }
+}
+
 async function proxyToOpenClaw(reqPath, res, requestId) {
+  // Handle /api/sessions locally
+  if (reqPath === '/api/sessions') {
+    const data = getSessionData();
+    res.writeHead(200, {
+      'Content-Type': 'application/json',
+      'Access-Control-Allow-Origin': '*',
+      'X-Request-Id': requestId
+    });
+    res.end(JSON.stringify(data));
+    return;
+  }
+
   const url = OPENCLAW_URL + reqPath;
   const startTime = Date.now();
   
@@ -124,7 +164,6 @@ async function proxyToOpenClaw(reqPath, res, requestId) {
   } catch (error) {
     clearTimeout(timeout);
     
-    // Log detailed error server-side
     log('ERROR', `Proxy failed: ${reqPath}`, { 
       requestId, 
       targetUrl: url, 
@@ -132,7 +171,6 @@ async function proxyToOpenClaw(reqPath, res, requestId) {
       responseTime: Date.now() - startTime
     });
     
-    // Return generic message to client (don't leak internal details)
     sendError(res, 'Failed to reach backend service', 502, requestId);
   }
 }

@@ -1,0 +1,7 @@
+{
+  "id": "claude-usage",
+  "title": "Claude Usage",
+  "icon": "🤖",
+  "description": "Claude Code subscription usage tracker",
+  "order": 5
+}

@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LobsterBoard - Claude Usage</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0d1117; color: #e6edf3; }
+    .container { max-width: 700px; margin: 0 auto; padding: 1.5rem; }
+    h1 { font-size: 1.6rem; margin-bottom: 0.3rem; }
+    .sub-header { color: #8b949e; font-size: 0.85rem; margin-bottom: 1.5rem; }
+    .card { background: #161b22; border: 1px solid #30363d; border-radius: 10px; padding: 1.4rem; margin-bottom: 1.2rem; }
+    .card h2 { font-size: 0.95rem; color: #8b949e; margin-bottom: 1rem; display: flex; align-items: center; gap: 8px; }
+    .meter { margin-bottom: 1.2rem; }
+    .meter:last-child { margin-bottom: 0; }
+    .meter-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; }
+    .meter-label { font-weight: 600; font-size: 0.95rem; }
+    .meter-value { font-size: 1.3rem; font-weight: 700; }
+    .meter-bar { background: #21262d; border-radius: 6px; height: 10px; overflow: hidden; }
+    .meter-fill { height: 100%; border-radius: 6px; transition: width 0.6s ease; }
+    .meter-sub { text-align: right; margin-top: 4px; font-size: 0.8rem; color: #8b949e; }
+    .green { color: #3fb950; }
+    .yellow { color: #d29922; }
+    .red { color: #f85149; }
+    .bg-green { background: #3fb950; }
+    .bg-yellow { background: #d29922; }
+    .bg-red { background: #f85149; }
+    .extra-row { display: flex; justify-content: space-between; padding-top: 0.8rem; border-top: 1px solid #30363d; margin-top: 0.4rem; }
+    .extra-label { color: #8b949e; font-size: 0.9rem; }
+    .extra-value { font-weight: 600; font-size: 0.95rem; }
+    .badge { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 0.75rem; font-weight: 600; background: #1f6feb33; color: #58a6ff; margin-left: 8px; }
+    .loading { color: #8b949e; text-align: center; padding: 2rem; font-style: italic; }
+    .error { color: #f85149; text-align: center; padding: 2rem; }
+    .refresh-info { color: #484f58; font-size: 0.75rem; text-align: center; margin-top: 1rem; }
+  </style>
+</head>
+<body>
+  <nav id="page-nav"></nav>
+  <main class="container">
+    <h1>🤖 Claude Usage</h1>
+    <div class="sub-header" id="plan-info">Loading...</div>
+
+    <div class="card" id="usage-card">
+      <div class="loading">Loading usage data...</div>
+    </div>
+
+    <div class="refresh-info" id="refresh-info"></div>
+  </main>
+
+  <script src="/pages/_shared/nav.js"></script>
+  <script>
+    function barClass(pct) {
+      if (pct >= 80) return 'red';
+      if (pct >= 50) return 'yellow';
+      return 'green';
+    }
+
+    function timeLeft(iso) {
+      if (!iso) return '';
+      const ms = new Date(iso) - Date.now();
+      if (ms <= 0) return 'just now';
+      const h = Math.floor(ms / 3600000);
+      const m = Math.floor((ms % 3600000) / 60000);
+      if (h > 24) return Math.floor(h / 24) + 'd ' + (h % 24) + 'h';
+      return h > 0 ? h + 'h ' + m + 'm' : m + 'm';
+    }
+
+    function renderMeter(label, pct, resetIso) {
+      const p = Math.min(100, Math.max(0, pct || 0));
+      const cls = barClass(p);
+      const reset = resetIso ? `<div class="meter-sub">resets in ${timeLeft(resetIso)}</div>` : '';
+      return `<div class="meter">
+        <div class="meter-header">
+          <span class="meter-label">${label}</span>
+          <span class="meter-value ${cls}">${p.toFixed(0)}%</span>
+        </div>
+        <div class="meter-bar"><div class="meter-fill bg-${cls}" style="width:${p}%"></div></div>
+        ${reset}
+      </div>`;
+    }
+
+    async function loadUsage() {
+      const card = document.getElementById('usage-card');
+      const planEl = document.getElementById('plan-info');
+      const refreshEl = document.getElementById('refresh-info');
+
+      try {
+        const res = await fetch('/api/pages/claude-usage/usage');
+        const d = await res.json();
+
+        if (d.error) {
+          card.innerHTML = `<div class="error">${d.error}</div>`;
+          return;
+        }
+
+        const labels = { max: 'Max (5×)', pro: 'Pro', free: 'Free' };
+        const planName = labels[d.subscription] || d.subscription || 'Unknown';
+        const tierLabel = d.tier ? d.tier.replace('default_claude_', '').replace(/_/g, ' ') : '';
+        planEl.innerHTML = `${planName} plan` + (tierLabel ? `<span class="badge">${tierLabel}</span>` : '');
+
+        let html = '';
+        if (d.five_hour) html += renderMeter('5-Hour Session', d.five_hour.utilization, d.five_hour.resets_at);
+        if (d.seven_day) html += renderMeter('7-Day Weekly', d.seven_day.utilization, d.seven_day.resets_at);
+        if (d.seven_day_opus) html += renderMeter('Opus (7-Day)', d.seven_day_opus.utilization, d.seven_day_opus.resets_at);
+        if (d.seven_day_sonnet) html += renderMeter('Sonnet (7-Day)', d.seven_day_sonnet.utilization, d.seven_day_sonnet.resets_at);
+
+        if (d.extra_usage && d.extra_usage.is_enabled) {
+          const used = (d.extra_usage.used_credits / 100).toFixed(2);
+          const limit = d.extra_usage.monthly_limit > 0 ? '$' + (d.extra_usage.monthly_limit / 100).toFixed(2) : 'No limit';
+          html += `<div class="extra-row">
+            <span class="extra-label">Extra Usage (this month)</span>
+            <span class="extra-value">$${used} / ${limit}</span>
+          </div>`;
+        }
+
+        card.innerHTML = html || '<div class="loading">No usage data available</div>';
+        refreshEl.textContent = 'Last updated: ' + new Date().toLocaleTimeString();
+      } catch (e) {
+        card.innerHTML = `<div class="error">Failed to load: ${e.message}</div>`;
+      }
+    }
+
+    loadUsage();
+    setInterval(loadUsage, 120000);
+  </script>
+</body>
+</html>
