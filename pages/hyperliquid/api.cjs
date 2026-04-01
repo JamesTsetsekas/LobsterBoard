@@ -58,13 +58,12 @@ module.exports = function(ctx) {
         }));
       },
       'GET /bot-status': async (req, res) => {
-        // Auto-detect ALL Hyperliquid strategies from cron jobs
+        // Auto-detect Hyperliquid strategies from cron jobs (no hardcoded fallback)
         const cronJobsPath = path.join(process.env.HOME || os.homedir(), '.openclaw/cron/jobs.json');
         let strategies = [];
         try {
           const cronData = JSON.parse(fs.readFileSync(cronJobsPath, 'utf-8'));
           const hlJobs = (cronData.jobs || []).filter(j => 
-            j.enabled !== false && 
             (j.payload?.message || '').includes('hl_trader.py')
           );
           strategies = hlJobs.map(j => {
@@ -75,19 +74,10 @@ module.exports = function(ctx) {
               pair: pairMatch ? pairMatch[1] : 'UNKNOWN',
               strategy: stratMatch ? stratMatch[1] : 'unknown',
               timeframe: '1h',
-              enabled: true
+              enabled: j.enabled !== false
             };
           });
         } catch {}
-        // Fallback if cron parsing fails
-        if (!strategies.length) {
-          strategies = [
-            { pair: 'ZEC', strategy: 'bb_squeeze_breakout', timeframe: '1h' },
-            { pair: 'AVAX', strategy: 'bb_squeeze_v5', timeframe: '1h' },
-            { pair: 'PAXG', strategy: 'bb_squeeze_v5', timeframe: '1h' },
-            { pair: 'ADA', strategy: 'bb_squeeze_v5', timeframe: '1h' }
-          ];
-        }
         const tradeHistoryPath = path.join(process.env.HOME || os.homedir(), 'clawd/skills/hyperliquid/trade_history.jsonl');
         let trades = [];
         try {
@@ -104,7 +94,7 @@ module.exports = function(ctx) {
             pair: s.pair,
             strategy: s.strategy,
             timeframe: s.timeframe,
-            status: '🟢 Active',
+            status: s.enabled ? '🟢 Active' : '⏸️ Paused',
             totalTrades: pairTrades.length,
             wins,
             losses,

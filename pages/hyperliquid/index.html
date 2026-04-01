@@ -165,7 +165,7 @@
         const strategies = await res.json();
         if (strategies.error) throw new Error(strategies.error);
         if (!strategies.length) {
-          el.innerHTML = '<span class="sub">No active strategies</span>';
+          el.innerHTML = '<span class="sub">No active strategies — all bots are paused or removed</span>';
           return;
         }
         el.innerHTML = `<table>

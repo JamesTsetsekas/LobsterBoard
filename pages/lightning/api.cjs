@@ -81,45 +81,44 @@ module.exports = function(ctx) {
       },
       'GET /bot-status': (req, res) => {
         const fs = require('fs');
-        const tradeHistoryPath = path.join(process.env.HOME || os.homedir(), 'clawd/skills/perp-trader/trade_history.jsonl');
-        let trades = [];
-        try {
-          const content = fs.readFileSync(tradeHistoryPath, 'utf-8').trim();
-          if (content) trades = content.split('\n').map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
-        } catch {}
-        // Auto-detect strategy from cron payload (falls back to trade history)
+        // Auto-detect strategy from cron payload
         let activeStrategy = 'bb_squeeze_v5';
+        let cronEnabled = false;
         try {
           const cronJobsPath = path.join(process.env.HOME || os.homedir(), '.openclaw/cron/jobs.json');
           const cronData = JSON.parse(fs.readFileSync(cronJobsPath, 'utf-8'));
           const btcJob = (cronData.jobs || []).find(j => j.name === 'LN Markets BTC Trader');
           if (btcJob) {
+            cronEnabled = btcJob.enabled !== false;
             const match = (btcJob.payload?.message || '').match(/--strategy\s+(\S+)/);
             if (match) activeStrategy = match[1];
           }
         } catch {}
-        const strategies = [
-          { pair: 'BTC', strategy: activeStrategy, timeframe: '1h', cronName: 'LN Markets BTC Trader' }
-        ];
-        return strategies.map(s => {
-          // Match trades by strategy OR show all if no strategy-tagged trades exist
-          const stratTrades = trades.filter(t => (t.strategy || '') === s.strategy || (t.strategy || '') === '');
-          const lastTrade = stratTrades.length ? stratTrades[stratTrades.length - 1] : null;
-          const wins = stratTrades.filter(t => t.status === 'closed' && (t.pl_sats || 0) > 0).length;
-          const losses = stratTrades.filter(t => t.status === 'closed' && (t.pl_sats || 0) < 0).length;
-          const totalPl = stratTrades.reduce((sum, t) => sum + (t.pl_sats || 0), 0);
-          return {
-            pair: s.pair,
-            strategy: s.strategy,
-            timeframe: s.timeframe,
-            status: '\u{1F7E2} Active',
-            totalTrades: stratTrades.length,
-            wins,
-            losses,
-            totalPl,
-            lastRun: lastTrade ? new Date(lastTrade.timestamp).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : 'No trades yet'
-          };
-        });
+        if (!cronEnabled) return [];
+        // Use LN Markets API for real trade data instead of stale local JSONL
+        let closedTrades = [];
+        try {
+          closedTrades = lnmCmd('isolated-closed --limit 50');
+          if (closedTrades.data) closedTrades = closedTrades.data;
+          if (!Array.isArray(closedTrades)) closedTrades = [];
+        } catch {}
+        const wins = closedTrades.filter(t => (t.pl || 0) > 0).length;
+        const losses = closedTrades.filter(t => (t.pl || 0) < 0).length;
+        const totalPl = closedTrades.reduce((sum, t) => sum + (t.pl || 0), 0);
+        const lastTrade = closedTrades.length ? closedTrades[0] : null;
+        return [{
+          pair: 'BTC',
+          strategy: activeStrategy,
+          timeframe: '1h',
+          status: cronEnabled ? '\u{1F7E2} Active' : '\u23F8\uFE0F Paused',
+          totalTrades: closedTrades.length,
+          wins,
+          losses,
+          totalPl,
+          lastRun: lastTrade && lastTrade.closedAt
+            ? new Date(lastTrade.closedAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+            : 'No trades yet'
+        }];
       }
     }
   };
