@@ -80,6 +80,46 @@
       </div>`;
     }
 
+    function calcWeekProgress(resetIso) {
+      if (!resetIso) return null;
+      const resetMs = new Date(resetIso).getTime();
+      const weekMs = 7 * 24 * 3600000;
+      const startMs = resetMs - weekMs;
+      const now = Date.now();
+      const pct = ((now - startMs) / weekMs) * 100;
+      return Math.min(100, Math.max(0, pct));
+    }
+
+    function formatResetDate(iso) {
+      if (!iso) return '';
+      const d = new Date(iso);
+      return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) + ' ' +
+             d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+    }
+
+    function renderWeekProgress(weekPct, weeklyUtil, resetIso) {
+      const wp = Math.min(100, Math.max(0, weekPct || 0));
+      const wu = weeklyUtil || 0;
+      const diff = wp - wu;
+      let status, statusCls;
+      if (diff > 15) { status = '⚡ Ahead of pace — room to push'; statusCls = 'green'; }
+      else if (diff > 0) { status = '✅ On track'; statusCls = 'green'; }
+      else if (diff > -10) { status = '⚠️ Slightly behind'; statusCls = 'yellow'; }
+      else { status = '🔴 Behind pace'; statusCls = 'red'; }
+      const resetLabel = resetIso ? `resets ${formatResetDate(resetIso)}` : '';
+      return `<div class="meter" style="margin-top:0.4rem;padding-top:0.8rem;border-top:1px solid #30363d;">
+        <div class="meter-header">
+          <span class="meter-label">📅 Week Progress</span>
+          <span class="meter-value ${barClass(wp)}">${wp.toFixed(1)}%</span>
+        </div>
+        <div class="meter-bar"><div class="meter-fill bg-${barClass(wp)}" style="width:${wp}%"></div></div>
+        <div class="meter-sub" style="display:flex;justify-content:space-between;">
+          <span class="${statusCls}">${status}</span>
+          <span>${resetLabel}</span>
+        </div>
+      </div>`;
+    }
+
     async function loadUsage() {
       const card = document.getElementById('usage-card');
       const planEl = document.getElementById('plan-info');
@@ -97,7 +137,7 @@
         const labels = { max: 'Max (5×)', pro: 'Pro', free: 'Free' };
         const planName = labels[d.subscription] || d.subscription || 'Unknown';
         const tierLabel = d.tier ? d.tier.replace('default_claude_', '').replace(/_/g, ' ') : '';
-        planEl.innerHTML = `${planName} plan` + (tierLabel ? `<span class="badge">${tierLabel}</span>` : '');
+        planEl.innerHTML = `${planName} plan` + (tierLabel ? ` <span class="badge">${tierLabel}</span>` : '');
 
         let html = '';
         if (d.five_hour) html += renderMeter('5-Hour Session', d.five_hour.utilization, d.five_hour.resets_at);
@@ -112,6 +152,14 @@
             <span class="extra-label">Extra Usage (this month)</span>
             <span class="extra-value">$${used} / ${limit}</span>
           </div>`;
+        }
+
+        // Week progress meter
+        const weekResetIso = d.seven_day ? d.seven_day.resets_at : null;
+        const weekPct = calcWeekProgress(weekResetIso);
+        const weeklyUtil = d.seven_day ? d.seven_day.utilization : 0;
+        if (weekPct !== null) {
+          html += renderWeekProgress(weekPct, weeklyUtil, weekResetIso);
         }
 
         card.innerHTML = html || '<div class="loading">No usage data available</div>';
