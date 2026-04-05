@@ -121,7 +121,7 @@ export const WIDGETS = {
     name: 'Auth Status',
     icon: '🔐',
     category: 'small',
-    description: 'Shows if OpenClaw is using Anthropic Max subscription (green) or API key fallback (yellow).',
+    description: 'Shows whether OpenClaw is on a subscription-backed/authenticated lane or direct API billing.',
     defaultWidth: 180,
     defaultHeight: 100,
     hasApiKey: true,
@@ -513,27 +513,27 @@ export const WIDGETS = {
     `
   },
 
-  'claude-usage': {
-    name: 'Claude Usage',
+  'usage-overview': {
+    name: 'Usage Overview',
     icon: '🤖',
     category: 'large',
-    description: 'Real-time Claude Code subscription usage (5h session, 7d weekly, Opus, Sonnet limits).',
+    description: 'Codex/OpenClaw usage snapshot from the local monitor with current pace and model mix.',
     defaultWidth: 380,
     defaultHeight: 260,
     hasApiKey: false,
     properties: {
-      title: 'Claude Usage',
+      title: 'Usage Overview',
       refreshInterval: 120
     },
     preview: `<div style="padding:8px;font-size:11px;">
-      <div><b>5h Session</b> 28%</div>
-      <div><b>7d Weekly</b> 31%</div>
+      <div><b>Today</b> $2.14</div>
+      <div><b>7d Avg</b> $3.81/day</div>
     </div>`,
     generateHtml: (props) => `
       <div class="dash-card" id="widget-${props.id}" style="height:100%;">
         <div class="dash-card-head">
-          <span class="dash-card-title">🤖 ${props.title || 'Claude Usage'}</span>
-          <span id="${props.id}-sub" style="font-size:10px;color:#8b949e;margin-left:auto;"></span>
+          <span class="dash-card-title">🤖 ${props.title || 'Usage Overview'}</span>
+          <span id="${props.id}-sub" style="font-size:10px;color:#8b949e;margin-left:auto;">Codex</span>
         </div>
         <div class="dash-card-body" id="${props.id}-body" style="padding:8px 12px;overflow-y:auto;">
           <div style="color:#8b949e;text-align:center;">Loading...</div>
@@ -541,10 +541,8 @@ export const WIDGETS = {
       </div>`,
     generateJs: (props) => `
       function barColor(pct) { return pct >= 80 ? '#f85149' : pct >= 50 ? '#d29922' : '#3fb950'; }
-      function timeLeft(iso) { if (!iso) return ''; const ms = new Date(iso) - Date.now(); if (ms <= 0) return 'now'; const h = Math.floor(ms/3600000), m = Math.floor((ms%3600000)/60000); return h > 0 ? h+'h '+m+'m' : m+'m'; }
-      function usageBar(label, pct, resetIso) { const p = Math.min(100,Math.max(0,pct||0)), c = barColor(p), reset = resetIso ? '<span style="color:#8b949e;font-size:10px;">resets '+timeLeft(resetIso)+'</span>' : ''; return '<div style="margin-bottom:10px;"><div style="display:flex;justify-content:space-between;margin-bottom:3px;"><span style="font-weight:600;font-size:12px;">'+label+'</span><span style="font-size:13px;font-weight:700;color:'+c+';">'+p.toFixed(0)+'%</span></div><div style="background:#21262d;border-radius:4px;height:8px;overflow:hidden;"><div style="width:'+p+'%;height:100%;background:'+c+';border-radius:4px;transition:width .5s;"></div></div>'+(reset?'<div style="text-align:right;margin-top:2px;">'+reset+'</div>':'')+'</div>'; }
-      function weekProgressBar(resetIso, weeklyUtil) { if (!resetIso) return ''; const resetMs = new Date(resetIso).getTime(), weekMs=7*24*3600000, startMs=resetMs-weekMs, now=Date.now(); const wp=Math.min(100,Math.max(0,((now-startMs)/weekMs)*100)); const c=barColor(wp); const diff=wp-(weeklyUtil||0); let status; if(diff>15) status='⚡ Ahead'; else if(diff>0) status='✅ On track'; else if(diff>-10) status='⚠️ Slightly behind'; else status='🔴 Behind'; const rd=new Date(resetIso); const resetLabel=rd.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})+' '+rd.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}); return '<div style="margin-top:4px;padding-top:6px;border-top:1px solid #30363d;"><div style="display:flex;justify-content:space-between;margin-bottom:3px;"><span style="font-weight:600;font-size:12px;">📅 Week</span><span style="font-size:13px;font-weight:700;color:'+c+';">'+wp.toFixed(0)+'%</span></div><div style="background:#21262d;border-radius:4px;height:8px;overflow:hidden;"><div style="width:'+wp+'%;height:100%;background:'+c+';border-radius:4px;transition:width .5s;"></div></div><div style="display:flex;justify-content:space-between;margin-top:2px;"><span style="font-size:10px;color:'+(diff>0?'#3fb950':diff>-10?'#d29922':'#f85149')+';">'+status+'</span><span style="font-size:10px;color:#8b949e;">resets '+resetLabel+'</span></div></div>'; }
-      async function update_${props.id.replace(/-/g,'_')}() { const body = document.getElementById('${props.id}-body'); const subEl = document.getElementById('${props.id}-sub'); try { const res = await fetch('/api/pages/claude-usage/usage'); const d = await res.json(); if (d.error) { body.innerHTML='<div style="color:#f85149;">'+d.error+'</div>'; return; } if (subEl) { subEl.textContent = {max:'Max (5×)',pro:'Pro',free:'Free'}[d.subscription]||d.subscription||''; } let html=''; if(d.five_hour) html+=usageBar('5h Session',d.five_hour.utilization,d.five_hour.resets_at); if(d.seven_day) html+=usageBar('7d Weekly',d.seven_day.utilization,d.seven_day.resets_at); if(d.seven_day_opus) html+=usageBar('Opus (7d)',d.seven_day_opus.utilization,d.seven_day_opus.resets_at); if(d.seven_day_sonnet&&d.seven_day_sonnet.utilization>0) html+=usageBar('Sonnet (7d)',d.seven_day_sonnet.utilization,d.seven_day_sonnet.resets_at); if(d.extra_usage&&d.extra_usage.is_enabled){const used=(d.extra_usage.used_credits/100).toFixed(2),limit=d.extra_usage.monthly_limit>0?(d.extra_usage.monthly_limit/100).toFixed(2):'∞';html+='<div style="margin-top:4px;padding-top:6px;border-top:1px solid #30363d;"><div style="display:flex;justify-content:space-between;font-size:11px;"><span style="color:#8b949e;">Extra Usage</span><span style="font-weight:600;">$'+used+' / $'+limit+'</span></div></div>';} if(d.seven_day&&d.seven_day.resets_at) html+=weekProgressBar(d.seven_day.resets_at,d.seven_day.utilization); if(!html) html='<div style="color:#8b949e;">No usage data</div>'; body.innerHTML=html; } catch(e) { console.error('Claude usage error:',e); body.innerHTML='<div style="color:#f85149;">Failed to load</div>'; } }
+      function usageBar(label, pct, note) { const p = Math.min(100,Math.max(0,pct||0)), c = barColor(p); return '<div style="margin-bottom:10px;"><div style="display:flex;justify-content:space-between;margin-bottom:3px;"><span style="font-weight:600;font-size:12px;">'+label+'</span><span style="font-size:13px;font-weight:700;color:'+c+';">'+p.toFixed(1)+'%</span></div><div style="background:#21262d;border-radius:4px;height:8px;overflow:hidden;"><div style="width:'+p+'%;height:100%;background:'+c+';border-radius:4px;transition:width .5s;"></div></div>'+(note?'<div style="text-align:right;margin-top:2px;color:#8b949e;font-size:10px;">'+note+'</div>':'')+'</div>'; }
+      async function update_${props.id.replace(/-/g,'_')}() { const body = document.getElementById('${props.id}-body'); try { const res = await fetch('/api/pages/usage/usage'); const d = await res.json(); if (d.error) { body.innerHTML='<div style="color:#f85149;">'+d.error+'</div>'; return; } let html=''; html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;"><div><div style="font-size:10px;color:#8b949e;">Today</div><div style="font-size:20px;font-weight:700;">$'+(d.todayCost||0).toFixed(2)+'</div></div><div><div style="font-size:10px;color:#8b949e;">7d Avg</div><div style="font-size:20px;font-weight:700;">$'+(d.avgDailyCost||0).toFixed(2)+'/d</div></div></div>'; if (d.weekProgressPct != null) html += usageBar('Week Progress', d.weekProgressPct, d.weekResetLabel ? 'resets '+d.weekResetLabel+' ET' : ''); if (d.codexSharePct != null) html += usageBar('Codex Share', d.codexSharePct, '$'+(d.codexCost||0).toFixed(2)+' of $'+(d.totalCost||0).toFixed(2)); if (Array.isArray(d.topModels) && d.topModels.length) { html += '<div style="margin-top:6px;padding-top:6px;border-top:1px solid #30363d;"><div style="font-size:11px;color:#8b949e;margin-bottom:6px;">Top Models</div>'; for (const m of d.topModels.slice(0,4)) { html += '<div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:4px;"><span>'+m.name+'</span><span style="font-weight:600;">$'+(m.cost||0).toFixed(2)+'</span></div>'; } html += '</div>'; } if (d.note) html += '<div style="margin-top:8px;color:#8b949e;font-size:10px;">'+d.note+'</div>'; body.innerHTML=html; } catch(e) { console.error('Usage overview error:',e); body.innerHTML='<div style="color:#f85149;">Failed to load</div>'; } }
       update_${props.id.replace(/-/g,'_')}(); setInterval(update_${props.id.replace(/-/g,'_')}, ${(props.refreshInterval||120)*1000});
     `
   }

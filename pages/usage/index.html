@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LobsterBoard - Codex Usage Limits</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0d1117; color: #e6edf3; }
+    .container { max-width: 760px; margin: 0 auto; padding: 1.5rem; }
+    h1 { font-size: 1.6rem; margin-bottom: 0.3rem; }
+    .sub-header { color: #8b949e; font-size: 0.9rem; margin-bottom: 1.5rem; }
+    .card { background: #161b22; border: 1px solid #30363d; border-radius: 10px; padding: 1.4rem; margin-bottom: 1.2rem; }
+    .meter { margin-bottom: 1rem; }
+    .meter-header { display:flex; justify-content:space-between; margin-bottom:6px; }
+    .meter-bar { background:#21262d; border-radius:6px; height:10px; overflow:hidden; }
+    .meter-fill { height:100%; border-radius:6px; transition: width .5s; }
+    .green { color:#3fb950; } .yellow { color:#d29922; } .red { color:#f85149; }
+    .bg-green { background:#3fb950; } .bg-yellow { background:#d29922; } .bg-red { background:#f85149; }
+    .muted { color:#8b949e; font-size:0.82rem; }
+    .loading { color:#8b949e; text-align:center; padding:2rem; }
+    .error { color:#f85149; text-align:center; padding:2rem; }
+    .refresh-info { color:#484f58; font-size:0.75rem; text-align:center; margin-top: 1rem; }
+  </style>
+</head>
+<body>
+  <nav id="page-nav"></nav>
+  <main class="container">
+    <h1>🤖 Codex Usage Limits</h1>
+    <div class="sub-header" id="plan-info">Loading...</div>
+    <div class="card" id="usage-card"><div class="loading">Loading usage data...</div></div>
+    <div class="refresh-info" id="refresh-info"></div>
+  </main>
+
+  <script src="/pages/_shared/nav.js"></script>
+  <script>
+    function cls(p){ if(p >= 80) return 'red'; if(p >= 50) return 'yellow'; return 'green'; }
+    function fmtReset(epoch){ if(!epoch) return ''; const d=new Date(epoch*1000); return d.toLocaleString('en-US',{weekday:'short',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}); }
+    function meter(label, obj){ if(!obj) return ''; const p=obj.used_percent||0, c=cls(p); return `<div class="meter"><div class="meter-header"><span>${label}</span><strong class="${c}">${p}%</strong></div><div class="meter-bar"><div class="meter-fill bg-${c}" style="width:${p}%"></div></div><div class="muted" style="margin-top:4px;text-align:right;">resets ${fmtReset(obj.reset_at)} ET</div></div>`; }
+    async function loadUsage(){
+      const card=document.getElementById('usage-card');
+      const plan=document.getElementById('plan-info');
+      const refresh=document.getElementById('refresh-info');
+      try{
+        const res=await fetch('/api/pages/usage/usage');
+        const d=await res.json();
+        if(d.error){ card.innerHTML=`<div class="error">${d.error}</div>`; return; }
+        plan.textContent=`${d.email} • ${d.planType}`;
+        let html='';
+        html += meter('5h Session', d.session);
+        html += meter('Weekly', d.weekly);
+        if (d.sparkSession) html += meter('GPT-5.3-Codex-Spark 5h', d.sparkSession);
+        if (d.sparkWeekly) html += meter('GPT-5.3-Codex-Spark Weekly', d.sparkWeekly);
+        if (d.credits) html += `<div class="muted" style="padding-top:8px;border-top:1px solid #30363d;">💳 Credits Remaining: ${d.credits.unlimited ? 'Unlimited' : d.credits.balance}</div>`;
+        html += `<div class="muted" style="padding-top:8px;">${d.weekProgressNote}</div>`;
+        card.innerHTML=html;
+        refresh.textContent='Last updated: ' + new Date().toLocaleTimeString();
+      } catch(e){ card.innerHTML=`<div class="error">Failed to load: ${e.message}</div>`; }
+    }
+    loadUsage();
+    setInterval(loadUsage, 120000);
+  </script>
+</body>
+</html>

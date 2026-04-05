@@ -1,0 +1,7 @@
+{
+  "id": "usage",
+  "title": "Usage Overview",
+  "icon": "🤖",
+  "description": "Codex/OpenClaw usage overview from the local monitor",
+  "order": 5
+}
